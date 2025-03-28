@@ -191,9 +191,9 @@ class MainPage extends StatelessWidget {
                                           title: Text(
                                               '${operation!.nomOperation} x${operation.quantiteOperation}'),
                                           subtitle: Text(
-                                              '${operation.quantiteOperation * operation.prixOperation} Ar'),
+                                              '${formatNumber(operation.quantiteOperation * operation.prixOperation)} Ar'),
                                           trailing: Text(
-                                              '${operation.dateOperation.hour}:${operation.dateOperation.minute}'),
+                                              '${operation.dateOperation.hour / 10 < 1 ? '0' : ''}${operation.dateOperation.hour}:${operation.dateOperation.minute / 10 < 1 ? '0' : ''}${operation.dateOperation.minute}'),
                                         ),
                                         if (index !=
                                             (snapshot.data!.length - 1))
@@ -235,8 +235,8 @@ class MainPage extends StatelessWidget {
                                       children: [
                                         ListTile(
                                           title: Text(depense!.libelle),
-                                          subtitle:
-                                              Text('${depense.montant} Ar'),
+                                          subtitle: Text(
+                                              '${formatNumber(depense.montant)} Ar'),
                                           trailing: Text(
                                               '${depense.dateDepense.hour}:${depense.dateDepense.minute}'),
                                         ),

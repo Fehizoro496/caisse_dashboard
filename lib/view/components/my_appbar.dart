@@ -10,6 +10,7 @@ class MyAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return AppBar(
       foregroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
       centerTitle: true,
       backgroundColor: Colors.blue,
       actions: [
