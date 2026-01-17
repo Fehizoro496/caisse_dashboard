@@ -1,10 +1,12 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:caisse_dashboard/controller/main_controller.dart';
+import 'package:caisse_dashboard/controller/theme_controller.dart';
+import 'package:caisse_dashboard/core/theme/app_theme.dart';
 import 'package:caisse_dashboard/service/db_service.dart';
 import 'package:caisse_dashboard/service/sync_service.dart';
 import 'package:caisse_dashboard/view/components/my_appbar.dart';
-// import 'package:caisse_dashboard/view/components/my_drawer.dart';
 import 'package:caisse_dashboard/view/main_page.dart';
-import 'package:get/get.dart';
-import 'package:flutter/material.dart';
 
 void main() async {
   // Ensure widgets are initialized
@@ -13,6 +15,11 @@ void main() async {
   // Initialize Services
   await Get.putAsync(() => DBService().init());
   await Get.putAsync(() => SyncService().init());
+
+  // Initialize Controllers
+  Get.put(ThemeController());
+  Get.put(MainController());
+
   runApp(const MyApp());
 }
 
@@ -21,19 +28,24 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
-      debugShowCheckedModeBanner: false,
-      // title: 'Dashboard',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: Scaffold(
-        appBar: MyAppBar(),
-        // drawer: const MyDrawer(),
-        extendBody: true,
-        body: MainPage(),
-      ),
+    return GetBuilder<ThemeController>(
+      builder: (themeController) {
+        return GetMaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Caisse Dashboard',
+
+          // Thèmes light/dark avec palette violet/indigo
+          theme: AppTheme.lightTheme(),
+          darkTheme: AppTheme.darkTheme(),
+          themeMode: themeController.themeMode,
+
+          home: Scaffold(
+            extendBodyBehindAppBar: true,
+            appBar: MyAppBar(),
+            body: MainPage(),
+          ),
+        );
+      },
     );
   }
 }

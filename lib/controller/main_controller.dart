@@ -79,6 +79,10 @@ class MainController extends GetxController {
     return dbService.getDepensesByDate(date);
   }
 
+  Future<List<Prelevement>> getPrelevementsByDate(DateTime date) {
+    return dbService.getPrelevementByDate(date);
+  }
+
   Future<List<Depense>> getDepense() {
     return dbService.getAllDepenses();
   }

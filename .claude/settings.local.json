@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(flutter pub:*)",
+      "Bash(cmd //c:*)"
+    ]
+  }
+}
