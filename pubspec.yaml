@@ -40,6 +40,7 @@ dependencies:
   # Windows (CRITIQUE)
   win32: ^5.15.0             # ❗️PAS 5.x (évite les breaks natifs)
 
+  collection: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

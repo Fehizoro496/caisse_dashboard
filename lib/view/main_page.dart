@@ -138,20 +138,20 @@ class MainPage extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               // Charts column
-              Expanded(
+              const Expanded(
                 child: Column(
                   children: [
                     Expanded(
                       child: FadeSlideWidget(
                         index: 2,
-                        child: const IncomeChart(),
+                        child: IncomeChart(),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     Expanded(
                       child: FadeSlideWidget(
                         index: 3,
-                        child: const ExpensePieChart(),
+                        child: ExpensePieChart(),
                       ),
                     ),
                   ],

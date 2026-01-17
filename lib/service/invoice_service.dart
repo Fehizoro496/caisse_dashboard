@@ -199,7 +199,7 @@ class InvoiceService extends GetxService {
                       formatNumber(operation.prixOperation),
                       "${formatNumber(operation.quantiteOperation * operation.prixOperation)} Ar"
                     ];
-                  }).toList(),
+                  }),
                   ['', '', '', 'TOTAL', "${formatNumber(total)} Ar"],
                 ],
               ),

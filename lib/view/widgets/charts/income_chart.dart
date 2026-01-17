@@ -52,13 +52,13 @@ class IncomeChart extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   // Légende
-                  Row(
+                  const Row(
                     children: [
                       _LegendItem(
                         color: AppColors.success,
                         label: 'Entrants',
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: 16),
                       _LegendItem(
                         color: AppColors.accent,
                         label: 'Prélèvements',
