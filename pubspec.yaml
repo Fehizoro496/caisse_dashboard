@@ -18,7 +18,7 @@ dependencies:
   pdf: ^3.10.8
   path_provider: ^2.1.4
   open_document: ^1.0.7
-  file_picker: ^10.3.8        # ❗️PAS 8.x (OK Flutter 3.38)
+  file_picker: ^10.3.8   # OK avec Flutter 3.38
 
   # Base de données
   drift: ^2.21.0
@@ -33,14 +33,15 @@ dependencies:
   encrypt: ^5.0.3
   uuid: ^4.5.1
   shared_preferences: ^2.2.2
+  intl: ^0.18.1
+  collection: ^1.18.0
 
   # Charts
   syncfusion_flutter_charts: ^32.1.23
 
-  # Windows (CRITIQUE)
-  win32: ^5.15.0             # ❗️PAS 5.x (évite les breaks natifs)
+  # Windows (STABLE Flutter 3.38)
+  win32: 5.15.0   # 🔒 pin exact pour éviter les breaks natifs
 
-  collection: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

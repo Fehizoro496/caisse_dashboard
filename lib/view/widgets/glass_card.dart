@@ -87,14 +87,18 @@ class GlassCard extends StatelessWidget {
 
         if (animate) {
           return TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.95, end: 1.0),
+            tween: Tween(begin: 0.0, end: 1.0),
             duration: animationDuration,
-            curve: Curves.easeOutBack,
+            curve: Curves.easeOutCubic,
             builder: (context, value, child) {
+              // Ensure opacity is clamped between 0.0 and 1.0
+              final clampedOpacity = value.clamp(0.0, 1.0);
+              // Scale from 0.95 to 1.0
+              final scale = 0.95 + (0.05 * value);
               return Transform.scale(
-                scale: value,
+                scale: scale,
                 child: Opacity(
-                  opacity: value,
+                  opacity: clampedOpacity,
                   child: child,
                 ),
               );

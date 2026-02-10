@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:caisse_dashboard/controller/main_controller.dart';
 import 'package:caisse_dashboard/controller/theme_controller.dart';
 import 'package:caisse_dashboard/core/theme/app_colors.dart';
+import 'package:caisse_dashboard/core/routes/app_routes.dart';
 
 class MyAppBar extends StatelessWidget implements PreferredSizeWidget {
   MyAppBar({super.key});
@@ -53,6 +54,9 @@ class MyAppBar extends StatelessWidget implements PreferredSizeWidget {
                         ),
                       ),
                       const Spacer(),
+                      // Menu rapide
+                      _QuickMenu(isDark: isDark),
+                      const SizedBox(width: 12),
                       // Bouton Import
                       _GlassButton(
                         onPressed: () => mainController.syncDatabase(),
@@ -241,6 +245,95 @@ class _ThemeToggle extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Menu rapide pour accéder aux différentes pages
+class _QuickMenu extends StatelessWidget {
+  final bool isDark;
+
+  const _QuickMenu({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          Icons.menu_rounded,
+          color: isDark ? AppColors.darkText : AppColors.lightText,
+          size: 20,
+        ),
+      ),
+      offset: const Offset(0, 45),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+      onSelected: (value) => Get.toNamed(value),
+      itemBuilder: (context) => [
+        _buildMenuItem(
+          route: AppRoutes.operations,
+          icon: Icons.receipt_long_rounded,
+          label: 'Opérations',
+          color: AppColors.success,
+        ),
+        _buildMenuItem(
+          route: AppRoutes.depenses,
+          icon: Icons.payments_rounded,
+          label: 'Dépenses',
+          color: AppColors.error,
+        ),
+        _buildMenuItem(
+          route: AppRoutes.prelevements,
+          icon: Icons.account_balance_wallet_rounded,
+          label: 'Prélèvements',
+          color: AppColors.accent,
+        ),
+        const PopupMenuDivider(),
+        _buildMenuItem(
+          route: AppRoutes.releves,
+          icon: Icons.electric_bolt_rounded,
+          label: 'Relevés Électricité',
+          color: AppColors.warning,
+        ),
+      ],
+    );
+  }
+
+  PopupMenuItem<String> _buildMenuItem({
+    required String route,
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return PopupMenuItem<String>(
+      value: route,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: TextStyle(
+              color: isDark ? AppColors.darkText : AppColors.lightText,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

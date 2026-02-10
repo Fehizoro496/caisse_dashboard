@@ -4,6 +4,7 @@ import 'package:caisse_dashboard/controller/main_controller.dart';
 import 'package:caisse_dashboard/controller/theme_controller.dart';
 import 'package:caisse_dashboard/core/theme/app_colors.dart';
 import 'package:caisse_dashboard/core/theme/responsive.dart';
+import 'package:caisse_dashboard/core/routes/app_routes.dart';
 import 'package:caisse_dashboard/utils/format_number.dart';
 import 'package:caisse_dashboard/view/widgets/glass_card.dart';
 import 'package:caisse_dashboard/view/widgets/stat_card.dart';
@@ -90,6 +91,7 @@ class MainPage extends StatelessWidget {
                   icon: Icons.arrow_downward_rounded,
                   accentColor: AppColors.success,
                   index: 0,
+                  onTap: () => Get.toNamed(AppRoutes.operations),
                 ),
               ),
               const SizedBox(width: 12),
@@ -100,6 +102,7 @@ class MainPage extends StatelessWidget {
                   icon: Icons.arrow_upward_rounded,
                   accentColor: AppColors.error,
                   index: 1,
+                  onTap: () => Get.toNamed(AppRoutes.depenses),
                 ),
               ),
               const SizedBox(width: 12),
@@ -110,6 +113,7 @@ class MainPage extends StatelessWidget {
                   icon: Icons.account_balance_wallet_rounded,
                   accentColor: AppColors.accent,
                   index: 2,
+                  onTap: () => Get.toNamed(AppRoutes.prelevements),
                 ),
               ),
             ],
@@ -183,6 +187,7 @@ class MainPage extends StatelessWidget {
                   icon: Icons.arrow_downward_rounded,
                   accentColor: AppColors.success,
                   index: 0,
+                  onTap: () => Get.toNamed(AppRoutes.operations),
                 ),
               ),
               const SizedBox(width: 12),
@@ -193,6 +198,7 @@ class MainPage extends StatelessWidget {
                   icon: Icons.arrow_upward_rounded,
                   accentColor: AppColors.error,
                   index: 1,
+                  onTap: () => Get.toNamed(AppRoutes.depenses),
                 ),
               ),
               const SizedBox(width: 12),
@@ -203,6 +209,7 @@ class MainPage extends StatelessWidget {
                   icon: Icons.account_balance_wallet_rounded,
                   accentColor: AppColors.accent,
                   index: 2,
+                  onTap: () => Get.toNamed(AppRoutes.prelevements),
                 ),
               ),
             ],
@@ -262,6 +269,7 @@ class MainPage extends StatelessWidget {
                     icon: Icons.arrow_downward_rounded,
                     accentColor: AppColors.success,
                     index: 0,
+                    onTap: () => Get.toNamed(AppRoutes.operations),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -273,6 +281,7 @@ class MainPage extends StatelessWidget {
                     icon: Icons.arrow_upward_rounded,
                     accentColor: AppColors.error,
                     index: 1,
+                    onTap: () => Get.toNamed(AppRoutes.depenses),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -284,6 +293,7 @@ class MainPage extends StatelessWidget {
                     icon: Icons.account_balance_wallet_rounded,
                     accentColor: AppColors.accent,
                     index: 2,
+                    onTap: () => Get.toNamed(AppRoutes.prelevements),
                   ),
                 ),
               ],
@@ -342,6 +352,18 @@ class MainPage extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                   color: textColor,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => Get.toNamed(AppRoutes.operations),
+                child: Text(
+                  'Voir tout',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -454,6 +476,18 @@ class MainPage extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                   color: textColor,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => Get.toNamed(AppRoutes.depenses),
+                child: Text(
+                  'Voir tout',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],

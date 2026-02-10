@@ -11,6 +11,7 @@ class StatCard extends StatelessWidget {
   final IconData icon;
   final Color? accentColor;
   final int index;
+  final VoidCallback? onTap;
 
   const StatCard({
     super.key,
@@ -20,6 +21,7 @@ class StatCard extends StatelessWidget {
     required this.icon,
     this.accentColor,
     this.index = 0,
+    this.onTap,
   });
 
   @override
@@ -36,18 +38,20 @@ class StatCard extends StatelessWidget {
           child: Opacity(opacity: value, child: child),
         );
       },
-      child: GlassCard(
-        animate: false,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color,
-            color.withValues(alpha: 0.8),
-          ],
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
+      child: GestureDetector(
+        onTap: onTap,
+        child: GlassCard(
+          animate: false,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color,
+              color.withValues(alpha: 0.8),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -107,6 +111,7 @@ class StatCard extends StatelessWidget {
               },
             ),
           ],
+        ),
         ),
       ),
     );
