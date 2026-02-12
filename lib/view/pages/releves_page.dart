@@ -46,19 +46,25 @@ class _RelevesPageState extends State<RelevesPage> {
     setState(() {
       switch (_sortBy) {
         case 'date':
-          _filteredReleves.sort((a, b) => _sortAscending
-              ? a.dateReleve.compareTo(b.dateReleve)
-              : b.dateReleve.compareTo(a.dateReleve));
+          _filteredReleves.sort(
+            (a, b) => _sortAscending
+                ? a.dateReleve.compareTo(b.dateReleve)
+                : b.dateReleve.compareTo(a.dateReleve),
+          );
           break;
         case 'compteur':
-          _filteredReleves.sort((a, b) => _sortAscending
-              ? a.compteur.compareTo(b.compteur)
-              : b.compteur.compareTo(a.compteur));
+          _filteredReleves.sort(
+            (a, b) => _sortAscending
+                ? a.compteur.compareTo(b.compteur)
+                : b.compteur.compareTo(a.compteur),
+          );
           break;
         case 'sousCompteur':
-          _filteredReleves.sort((a, b) => _sortAscending
-              ? a.sousCompteur.compareTo(b.sousCompteur)
-              : b.sousCompteur.compareTo(a.sousCompteur));
+          _filteredReleves.sort(
+            (a, b) => _sortAscending
+                ? a.sousCompteur.compareTo(b.sousCompteur)
+                : b.sousCompteur.compareTo(a.sousCompteur),
+          );
           break;
       }
     });
@@ -70,8 +76,9 @@ class _RelevesPageState extends State<RelevesPage> {
       builder: (themeController) {
         final isDark = themeController.isDarkMode;
         final textColor = isDark ? AppColors.darkText : AppColors.lightText;
-        final secondaryTextColor =
-            isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+        final secondaryTextColor = isDark
+            ? AppColors.darkTextSecondary
+            : AppColors.lightTextSecondary;
 
         return Scaffold(
           backgroundColor: Colors.transparent,
@@ -133,10 +140,7 @@ class _RelevesPageState extends State<RelevesPage> {
                 ),
                 Text(
                   '${_filteredReleves.length} relevés enregistrés',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: secondaryTextColor,
-                  ),
+                  style: TextStyle(fontSize: 14, color: secondaryTextColor),
                 ),
               ],
             ),
@@ -159,7 +163,10 @@ class _RelevesPageState extends State<RelevesPage> {
   }
 
   Widget _buildSortOptions(
-      Color textColor, Color secondaryTextColor, bool isDark) {
+    Color textColor,
+    Color secondaryTextColor,
+    bool isDark,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GlassCard(
@@ -212,8 +219,8 @@ class _RelevesPageState extends State<RelevesPage> {
           color: isSelected
               ? AppColors.warning
               : isDark
-                  ? Colors.white.withValues(alpha: 0.1)
-                  : Colors.black.withValues(alpha: 0.05),
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -222,8 +229,8 @@ class _RelevesPageState extends State<RelevesPage> {
             color: isSelected
                 ? Colors.white
                 : isDark
-                    ? AppColors.darkText
-                    : AppColors.lightText,
+                ? AppColors.darkText
+                : AppColors.lightText,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             fontSize: 13,
           ),
@@ -232,8 +239,7 @@ class _RelevesPageState extends State<RelevesPage> {
     );
   }
 
-  Widget _buildContent(
-      Color textColor, Color secondaryTextColor, bool isDark) {
+  Widget _buildContent(Color textColor, Color secondaryTextColor, bool isDark) {
     if (_filteredReleves.isEmpty) {
       return Center(
         child: Column(
@@ -247,10 +253,7 @@ class _RelevesPageState extends State<RelevesPage> {
             const SizedBox(height: 16),
             Text(
               'Aucun relevé enregistré',
-              style: TextStyle(
-                color: secondaryTextColor,
-                fontSize: 16,
-              ),
+              style: TextStyle(color: secondaryTextColor, fontSize: 16),
             ),
           ],
         ),
@@ -294,10 +297,7 @@ class _RelevesPageState extends State<RelevesPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  SizedBox(
-                    height: 200,
-                    child: _buildChart(isDark),
-                  ),
+                  SizedBox(height: 200, child: _buildChart(isDark)),
                 ],
               ),
             ),
@@ -328,7 +328,9 @@ class _RelevesPageState extends State<RelevesPage> {
       primaryXAxis: CategoryAxis(
         majorGridLines: const MajorGridLines(width: 0),
         labelStyle: TextStyle(
-          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+          color: isDark
+              ? AppColors.darkTextSecondary
+              : AppColors.lightTextSecondary,
           fontSize: 10,
         ),
         axisLine: AxisLine(
@@ -344,7 +346,9 @@ class _RelevesPageState extends State<RelevesPage> {
               : Colors.black.withValues(alpha: 0.05),
         ),
         labelStyle: TextStyle(
-          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+          color: isDark
+              ? AppColors.darkTextSecondary
+              : AppColors.lightTextSecondary,
           fontSize: 10,
         ),
         axisLine: const AxisLine(width: 0),
@@ -398,7 +402,10 @@ class _RelevesPageState extends State<RelevesPage> {
   }
 
   Widget _buildRelevesList(
-      Color textColor, Color secondaryTextColor, bool isDark) {
+    Color textColor,
+    Color secondaryTextColor,
+    bool isDark,
+  ) {
     // Calculate consumption between readings
     final sortedByDate = List<Releve>.from(_filteredReleves)
       ..sort((a, b) => b.dateReleve.compareTo(a.dateReleve));
@@ -441,17 +448,11 @@ class _RelevesPageState extends State<RelevesPage> {
             ),
             title: Text(
               DateFormat('dd MMMM yyyy', 'fr_FR').format(releve.dateReleve),
-              style: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
             ),
             subtitle: Text(
-              'Compteur: ${formatNumber(releve.compteur.toInt())} kWh',
-              style: TextStyle(
-                color: secondaryTextColor,
-                fontSize: 12,
-              ),
+              'Compteur: ${formatNumber(releve.compteur)} kWh',
+              style: TextStyle(color: secondaryTextColor, fontSize: 12),
             ),
             trailing: consumption != null
                 ? Container(
@@ -466,10 +467,11 @@ class _RelevesPageState extends State<RelevesPage> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '+${formatNumber(consumption.toInt())} kWh',
+                      '+${formatNumber(consumption)} kWh',
                       style: TextStyle(
-                        color:
-                            consumption > 0 ? AppColors.warning : AppColors.success,
+                        color: consumption > 0
+                            ? AppColors.warning
+                            : AppColors.success,
                         fontWeight: FontWeight.w600,
                         fontSize: 12,
                       ),
@@ -483,7 +485,7 @@ class _RelevesPageState extends State<RelevesPage> {
                   children: [
                     _buildDetailRow(
                       'Compteur principal',
-                      '${formatNumber(releve.compteur.toInt())} kWh',
+                      '${formatNumber(releve.compteur)} kWh',
                       AppColors.warning,
                       textColor,
                       secondaryTextColor,
@@ -491,20 +493,18 @@ class _RelevesPageState extends State<RelevesPage> {
                     const SizedBox(height: 8),
                     _buildDetailRow(
                       'Sous-compteur',
-                      '${formatNumber(releve.sousCompteur.toInt())} kWh',
+                      '${formatNumber(releve.sousCompteur)} kWh',
                       AppColors.info,
                       textColor,
                       secondaryTextColor,
                     ),
                     if (consumption != null) ...[
                       const SizedBox(height: 12),
-                      Divider(
-                        color: secondaryTextColor.withValues(alpha: 0.2),
-                      ),
+                      Divider(color: secondaryTextColor.withValues(alpha: 0.2)),
                       const SizedBox(height: 12),
                       _buildDetailRow(
                         'Consommation compteur',
-                        '+${formatNumber(consumption.toInt())} kWh',
+                        '+${formatNumber(consumption)} kWh',
                         AppColors.warning,
                         textColor,
                         secondaryTextColor,
@@ -512,7 +512,7 @@ class _RelevesPageState extends State<RelevesPage> {
                       const SizedBox(height: 8),
                       _buildDetailRow(
                         'Consommation sous-compteur',
-                        '+${formatNumber(sousConsumption!.toInt())} kWh',
+                        '+${formatNumber(sousConsumption!)} kWh',
                         AppColors.info,
                         textColor,
                         secondaryTextColor,
@@ -569,10 +569,7 @@ class _RelevesPageState extends State<RelevesPage> {
             const SizedBox(width: 8),
             Text(
               label,
-              style: TextStyle(
-                color: secondaryTextColor,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: secondaryTextColor, fontSize: 13),
             ),
           ],
         ),
