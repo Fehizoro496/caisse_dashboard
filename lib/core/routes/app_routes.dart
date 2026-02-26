@@ -4,6 +4,7 @@ import 'package:caisse_dashboard/view/pages/operations_page.dart';
 import 'package:caisse_dashboard/view/pages/depenses_page.dart';
 import 'package:caisse_dashboard/view/pages/prelevements_page.dart';
 import 'package:caisse_dashboard/view/pages/releves_page.dart';
+import 'package:caisse_dashboard/view/pages/partage_jiro_page.dart';
 
 class AppRoutes {
   static const String home = '/';
@@ -11,6 +12,7 @@ class AppRoutes {
   static const String depenses = '/depenses';
   static const String prelevements = '/prelevements';
   static const String releves = '/releves';
+  static const String partageJiro = '/partage-jiro';
 
   static List<GetPage> get pages => [
         GetPage(
@@ -40,6 +42,12 @@ class AppRoutes {
         GetPage(
           name: releves,
           page: () => const RelevesPage(),
+          transition: Transition.rightToLeftWithFade,
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+        GetPage(
+          name: partageJiro,
+          page: () => const PartageJiroPage(),
           transition: Transition.rightToLeftWithFade,
           transitionDuration: const Duration(milliseconds: 300),
         ),

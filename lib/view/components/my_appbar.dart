@@ -303,6 +303,12 @@ class _QuickMenu extends StatelessWidget {
           label: 'Relevés Électricité',
           color: AppColors.warning,
         ),
+        _buildMenuItem(
+          route: AppRoutes.partageJiro,
+          icon: Icons.electric_meter_rounded,
+          label: 'Partage JIRO',
+          color: AppColors.info,
+        ),
       ],
     );
   }

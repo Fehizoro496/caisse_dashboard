@@ -57,7 +57,24 @@ class Releves extends Table {
   DateTimeColumn get dateReleve => dateTime()();
 }
 
-@DriftDatabase(tables: [Operations, Factures, Depenses, Prelevements, Releves])
+class FacturesJiro extends Table {
+  TextColumn get idFactureJiro => text()();
+  TextColumn get mois => text()(); // "Janvier 2026"
+  DateTimeColumn get dateAncienIndex => dateTime()(); // Date de l'ancien relevé
+  DateTimeColumn get dateNouvelIndex => dateTime()(); // Date du nouveau relevé
+  RealColumn get ancienIndexCompteur => real()();
+  RealColumn get nouvelIndexCompteur => real()();
+  RealColumn get ancienIndexSousCompteur => real()();
+  RealColumn get nouvelIndexSousCompteur => real()();
+  RealColumn get prixUnitaireKwh => real()();
+  RealColumn get redevanceJirama => real()();
+  RealColumn get primeFixeJirama => real()();
+  RealColumn get taxesRedevances => real()();
+  RealColumn get tva => real()();
+  DateTimeColumn get dateFacture => dateTime()(); // Date de création
+}
+
+@DriftDatabase(tables: [Operations, Factures, Depenses, Prelevements, Releves, FacturesJiro])
 class AppDatabase extends _$AppDatabase {
   // Private constructor
   AppDatabase._() : super(_openConnection());
@@ -69,7 +86,7 @@ class AppDatabase extends _$AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   @override
-  int get schemaVersion => 8; // Increment schema version
+  int get schemaVersion => 9; // Increment schema version
 
   @override
   MigrationStrategy get migration {

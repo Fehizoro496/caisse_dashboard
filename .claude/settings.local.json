@@ -4,7 +4,11 @@
       "Bash(dir:*)",
       "Bash(findstr:*)",
       "Bash(flutter pub:*)",
-      "Bash(cmd //c:*)"
+      "Bash(cmd //c:*)",
+      "Bash(dart run build_runner build:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter build:*)",
+      "Bash(flutter clean:*)"
     ]
   }
 }

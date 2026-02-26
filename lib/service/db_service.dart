@@ -1,4 +1,5 @@
 import 'package:caisse_dashboard/model/depense_model.dart';
+import 'package:caisse_dashboard/model/facture_jiro_model.dart';
 import 'package:caisse_dashboard/model/operation_model.dart';
 import 'package:caisse_dashboard/model/prelevement_model.dart';
 import 'package:caisse_dashboard/model/releve_model.dart';
@@ -130,6 +131,106 @@ class DBService extends GetxService {
     return out;
   }
 
+  /// Trouve le relevé correspondant à la valeur du compteur principal.
+  /// Si la valeur exacte n'existe pas, interpole le sous-compteur à partir
+  /// des deux relevés les plus proches (un inférieur et un supérieur).
+  /// Retourne un Map avec:
+  /// - 'releve': le relevé exact si trouvé, ou null
+  /// - 'sousCompteur': la valeur du sous-compteur (exacte ou interpolée)
+  /// - 'date': la date du relevé (exacte ou interpolée)
+  /// - 'isInterpolated': true si la valeur a été calculée par interpolation
+  Future<Map<String, dynamic>?> getSousCompteurForCompteurValue(
+      double compteurValue) async {
+    final releves = await getAllReleves();
+    if (releves.isEmpty) return null;
+
+    // Trier par valeur du compteur
+    releves.sort((a, b) => a.compteur.compareTo(b.compteur));
+
+    // Chercher une correspondance exacte (avec tolérance de 0.01)
+    for (final releve in releves) {
+      if ((releve.compteur - compteurValue).abs() < 0.01) {
+        return {
+          'releve': releve,
+          'sousCompteur': releve.sousCompteur,
+          'date': releve.dateReleve,
+          'isInterpolated': false,
+        };
+      }
+    }
+
+    // Pas de correspondance exacte, chercher les deux relevés encadrants
+    Releve? releveBas; // Le relevé avec compteur juste en dessous
+    Releve? releveHaut; // Le relevé avec compteur juste au dessus
+
+    for (final releve in releves) {
+      if (releve.compteur < compteurValue) {
+        if (releveBas == null || releve.compteur > releveBas.compteur) {
+          releveBas = releve;
+        }
+      } else if (releve.compteur > compteurValue) {
+        if (releveHaut == null || releve.compteur < releveHaut.compteur) {
+          releveHaut = releve;
+        }
+      }
+    }
+
+    // Si on n'a qu'un seul côté, utiliser le relevé le plus proche
+    if (releveBas == null && releveHaut == null) {
+      return null;
+    }
+
+    if (releveBas == null) {
+      // Extrapolation vers le bas (pas idéal mais mieux que rien)
+      return {
+        'releve': null,
+        'sousCompteur': releveHaut!.sousCompteur,
+        'date': releveHaut.dateReleve,
+        'isInterpolated': true,
+        'note': 'Extrapolé (valeur inférieure aux relevés)',
+      };
+    }
+
+    if (releveHaut == null) {
+      // Extrapolation vers le haut (pas idéal mais mieux que rien)
+      return {
+        'releve': null,
+        'sousCompteur': releveBas.sousCompteur,
+        'date': releveBas.dateReleve,
+        'isInterpolated': true,
+        'note': 'Extrapolé (valeur supérieure aux relevés)',
+      };
+    }
+
+    // Interpolation linéaire entre les deux relevés
+    // Formule: sousCompteur = sousCompteurBas + (compteurValue - compteurBas) *
+    //          (sousCompteurHaut - sousCompteurBas) / (compteurHaut - compteurBas)
+    final compteurBas = releveBas.compteur;
+    final compteurHaut = releveHaut.compteur;
+    final sousCompteurBas = releveBas.sousCompteur;
+    final sousCompteurHaut = releveHaut.sousCompteur;
+
+    final ratio = (compteurValue - compteurBas) / (compteurHaut - compteurBas);
+    final sousCompteurInterpole =
+        sousCompteurBas + ratio * (sousCompteurHaut - sousCompteurBas);
+
+    // Interpoler aussi la date
+    final dateBas = releveBas.dateReleve;
+    final dateHaut = releveHaut.dateReleve;
+    final diffMillis = dateHaut.difference(dateBas).inMilliseconds;
+    final dateInterpole =
+        dateBas.add(Duration(milliseconds: (diffMillis * ratio).round()));
+
+    return {
+      'releve': null,
+      'sousCompteur': sousCompteurInterpole,
+      'date': dateInterpole,
+      'isInterpolated': true,
+      'releveBas': releveBas,
+      'releveHaut': releveHaut,
+    };
+  }
+
   Future<int> saveReleve(ReleveModel releve) async {
     return await database.into(database.releves).insert(RelevesCompanion.insert(
         idReleve: generateUid(),
@@ -156,6 +257,46 @@ class DBService extends GetxService {
           ..where(
               (dep) => dep.dateDepense.isBetweenValues(startOfDay, endOfDay)))
         .get();
+  }
+
+  // CRUD FacturesJiro
+  Future<List<FacturesJiroData>> getAllFacturesJiro() async {
+    return await (database.select(database.facturesJiro)
+          ..orderBy([(t) => OrderingTerm.desc(t.dateFacture)]))
+        .get();
+  }
+
+  Future<FacturesJiroData?> getFactureJiroById(String id) {
+    return (database.select(database.facturesJiro)
+          ..where((t) => t.idFactureJiro.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<int> saveFactureJiro(FactureJiroModel facture) async {
+    return await database.into(database.facturesJiro).insert(
+          FacturesJiroCompanion.insert(
+            idFactureJiro: generateUid(),
+            mois: facture.mois,
+            dateAncienIndex: facture.dateAncienIndex,
+            dateNouvelIndex: facture.dateNouvelIndex,
+            ancienIndexCompteur: facture.ancienIndexCompteur,
+            nouvelIndexCompteur: facture.nouvelIndexCompteur,
+            ancienIndexSousCompteur: facture.ancienIndexSousCompteur,
+            nouvelIndexSousCompteur: facture.nouvelIndexSousCompteur,
+            prixUnitaireKwh: facture.prixUnitaireKwh,
+            redevanceJirama: facture.redevanceJirama,
+            primeFixeJirama: facture.primeFixeJirama,
+            taxesRedevances: facture.taxesRedevances,
+            tva: facture.tva,
+            dateFacture: facture.dateFacture ?? DateTime.now(),
+          ),
+        );
+  }
+
+  Future<int> deleteFactureJiro(String id) async {
+    return await (database.delete(database.facturesJiro)
+          ..where((t) => t.idFactureJiro.equals(id)))
+        .go();
   }
 }
 // dart run drift_dev schema dump lib/persistance/database.dart db_schemas
