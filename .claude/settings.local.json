@@ -8,7 +8,10 @@
       "Bash(dart run build_runner build:*)",
       "Bash(flutter analyze:*)",
       "Bash(flutter build:*)",
-      "Bash(flutter clean:*)"
+      "Bash(flutter clean:*)",
+      "Bash(flutter --version 2>/dev/null && dart --version 2>/dev/null)",
+      "Bash(cd D:/workspace/caisse_dashboard && dart pub get 2>&1)",
+      "Bash(powershell:*)"
     ]
   }
 }
