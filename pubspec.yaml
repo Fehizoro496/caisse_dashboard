@@ -49,21 +49,6 @@ dev_dependencies:
   drift_dev: ^2.21.0
   build_runner: ^2.4.13
   flutter_lints: ^4.0.0
-  msix: ^3.16.9
 
 flutter:
   uses-material-design: true
-
-msix_config:
-  display_name: Caisse Dashboard
-  publisher_display_name: Caisse Dashboard
-  publisher: CN=Caisse Dashboard
-  identity_name: com.example.caisseDashboard
-  msix_version: 1.0.0.0
-  description: Dashboard de gestion de caisse
-  logo_path: windows\runner\resources\app_icon.ico
-  capabilities: internetClient, privateNetworkClientServer
-  certificate_path: caisse_dashboard_cert.pfx
-  certificate_password: CaisseDashboard2024!
-  sign_msix: true
-  install_certificate: false

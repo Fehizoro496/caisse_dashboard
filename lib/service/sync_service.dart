@@ -11,8 +11,9 @@ class SyncService extends GetxService {
   final database = AppDatabase.instance;
 
   // Add constant key (in production, use secure storage instead)
-  static final _encryptionKey =
-      encrypt.Key.fromUtf8('12345678901234567890123456789012');
+  static final _encryptionKey = encrypt.Key.fromUtf8(
+    '12345678901234567890123456789012',
+  );
 
   Future<SyncService> init() async {
     return this;
@@ -43,27 +44,36 @@ class SyncService extends GetxService {
       final backupFile = File('$desktopPath\\backup_caisse_$timestamp.enc');
 
       // Sauvegarder le contenu crypté
-      await backupFile.writeAsBytes(
-          [...iv.bytes, ...encrypted.bytes] // Combine IV et données cryptées
-          ).then((_) {
-        Get.snackbar(
-          'Exportation effectuée',
-          'Exportation effectuée avec succès!',
-          snackPosition: SnackPosition.TOP,
-          margin: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 70.0),
-          backgroundColor: const Color.fromARGB(175, 0, 225, 0),
-          colorText: Colors.white,
-        );
-      }).catchError((error) {
-        Get.snackbar(
-          "Erreur",
-          "Une erreur est survenue lors de l'exportation!",
-          snackPosition: SnackPosition.TOP,
-          margin: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 70.0),
-          backgroundColor: const Color.fromARGB(175, 255, 0, 0),
-          colorText: Colors.white,
-        );
-      });
+      await backupFile
+          .writeAsBytes(
+            [...iv.bytes, ...encrypted.bytes], // Combine IV et données cryptées
+          )
+          .then((_) {
+            Get.snackbar(
+              'Exportation effectuée',
+              'Exportation effectuée avec succès!',
+              snackPosition: SnackPosition.TOP,
+              margin: const EdgeInsets.symmetric(
+                horizontal: 10.0,
+                vertical: 70.0,
+              ),
+              backgroundColor: const Color.fromARGB(175, 0, 225, 0),
+              colorText: Colors.white,
+            );
+          })
+          .catchError((error) {
+            Get.snackbar(
+              "Erreur",
+              "Une erreur est survenue lors de l'exportation!",
+              snackPosition: SnackPosition.TOP,
+              margin: const EdgeInsets.symmetric(
+                horizontal: 10.0,
+                vertical: 70.0,
+              ),
+              backgroundColor: const Color.fromARGB(175, 255, 0, 0),
+              colorText: Colors.white,
+            );
+          });
 
       return true;
     } catch (e) {
@@ -80,34 +90,20 @@ class SyncService extends GetxService {
   }
 
   // Fonction pour décrypter (à utiliser lors de la restauration)
-  Future<List<int>> decryptBackup(String backupPath) async {
-    try {
-      final backupFile = File(backupPath);
-      final List<int> encryptedData = await backupFile.readAsBytes();
+  Future<Uint8List> decryptBackup(String backupPath) async {
+    final backupFile = File(backupPath);
+    final List<int> fileBytes = await backupFile.readAsBytes();
 
-      // Extraire IV et données cryptées
-      final ivBytes = encryptedData.sublist(0, 16);
-      final encryptedBytes = encryptedData.sublist(16);
+    // Extraire IV (16 bytes), clé (32 bytes) et données cryptées
+    final iv = encrypt.IV(Uint8List.fromList(fileBytes.sublist(0, 16)));
+    final key = encrypt.Key(Uint8List.fromList(fileBytes.sublist(16, 48)));
+    final encryptedBytes = Uint8List.fromList(fileBytes.sublist(48));
 
-      final iv = encrypt.IV(Uint8List.fromList(ivBytes));
-      final encrypter = encrypt.Encrypter(encrypt.AES(_encryptionKey));
+    final encrypter = encrypt.Encrypter(encrypt.AES(key));
+    final encrypted = encrypt.Encrypted(encryptedBytes);
 
-      final decrypted = encrypter.decryptBytes(
-          encrypt.Encrypted(Uint8List.fromList(encryptedBytes)),
-          iv: iv);
-
-      return decrypted;
-    } catch (e) {
-      Get.snackbar(
-        "Error decrypting backup",
-        '$e',
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 70.0),
-        backgroundColor: const Color.fromARGB(175, 255, 0, 0),
-        colorText: Colors.white,
-      );
-      rethrow;
-    }
+    final decryptedBytes = encrypter.decryptBytes(encrypted, iv: iv);
+    return Uint8List.fromList(decryptedBytes);
   }
 
   Future<bool> importAndMergeDatabase(String backupPath) async {
@@ -124,23 +120,28 @@ class SyncService extends GetxService {
       final importedDb = AppDatabase.fromFile(tempDbFile);
 
       // Récupérer toutes les données de la base importée
-      final importedOperations =
-          await importedDb.select(importedDb.operations).get();
-      final importedDepenses =
-          await importedDb.select(importedDb.depenses).get();
-      final importedPrelevements =
-          await importedDb.select(importedDb.prelevements).get();
+      final importedOperations = await importedDb
+          .select(importedDb.operations)
+          .get();
+      final importedDepenses = await importedDb
+          .select(importedDb.depenses)
+          .get();
+      final importedPrelevements = await importedDb
+          .select(importedDb.prelevements)
+          .get();
       final importedReleves = await importedDb.select(importedDb.releves).get();
-      final importedFactures =
-          await importedDb.select(importedDb.factures).get();
+      final importedFactures = await importedDb
+          .select(importedDb.factures)
+          .get();
 
       // Commencer la fusion des données dans une transaction
       await database.transaction(() async {
         // Fusionner les opérations
         for (final op in importedOperations) {
-          final exists = await (database.select(database.operations)
-                ..where((t) => t.idOperation.equals(op.idOperation)))
-              .getSingleOrNull();
+          final exists =
+              await (database.select(database.operations)
+                    ..where((t) => t.idOperation.equals(op.idOperation)))
+                  .getSingleOrNull();
           if (exists == null) {
             await database.into(database.operations).insert(op);
           }
@@ -148,9 +149,9 @@ class SyncService extends GetxService {
 
         // Fusionner les dépenses
         for (final dep in importedDepenses) {
-          final exists = await (database.select(database.depenses)
-                ..where((t) => t.idDepense.equals(dep.idDepense)))
-              .getSingleOrNull();
+          final exists = await (database.select(
+            database.depenses,
+          )..where((t) => t.idDepense.equals(dep.idDepense))).getSingleOrNull();
           if (exists == null) {
             await database.into(database.depenses).insert(dep);
           }
@@ -158,9 +159,10 @@ class SyncService extends GetxService {
 
         // Fusionner les prélèvements
         for (final prel in importedPrelevements) {
-          final exists = await (database.select(database.prelevements)
-                ..where((t) => t.idPrelevement.equals(prel.idPrelevement)))
-              .getSingleOrNull();
+          final exists =
+              await (database.select(database.prelevements)
+                    ..where((t) => t.idPrelevement.equals(prel.idPrelevement)))
+                  .getSingleOrNull();
           if (exists == null) {
             await database.into(database.prelevements).insert(prel);
           }
@@ -168,9 +170,9 @@ class SyncService extends GetxService {
 
         // Fusionner les relevés
         for (final rel in importedReleves) {
-          final exists = await (database.select(database.releves)
-                ..where((t) => t.idReleve.equals(rel.idReleve)))
-              .getSingleOrNull();
+          final exists = await (database.select(
+            database.releves,
+          )..where((t) => t.idReleve.equals(rel.idReleve))).getSingleOrNull();
           if (exists == null) {
             await database.into(database.releves).insert(rel);
           }
@@ -178,9 +180,9 @@ class SyncService extends GetxService {
 
         // Fusionner les factures
         for (final fac in importedFactures) {
-          final exists = await (database.select(database.factures)
-                ..where((t) => t.idFacture.equals(fac.idFacture)))
-              .getSingleOrNull();
+          final exists = await (database.select(
+            database.factures,
+          )..where((t) => t.idFacture.equals(fac.idFacture))).getSingleOrNull();
           if (exists == null) {
             await database.into(database.factures).insert(fac);
           }
