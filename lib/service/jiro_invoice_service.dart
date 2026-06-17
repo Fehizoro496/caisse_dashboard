@@ -199,6 +199,8 @@ class JiroInvoiceService extends GetxService {
     }
 
     final file = File(filePath);
+    // Créer le répertoire parent s'il n'existe pas
+    await file.parent.create(recursive: true);
     await file.writeAsBytes(await pdf.save());
 
     Get.snackbar(
