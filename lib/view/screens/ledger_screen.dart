@@ -11,6 +11,7 @@ class LedgerItem {
     required this.date,
     required this.amount,
     required this.cells,
+    this.onEdit,
   });
 
   final DateTime date;
@@ -18,6 +19,10 @@ class LedgerItem {
 
   /// Contenu des colonnes, dans l'ordre de [LedgerConfig.columns].
   final List<LedgerCell> cells;
+
+  /// Ouvre la correction de l'enregistrement. Absent = ligne non modifiable
+  /// (prélèvements) ; la colonne d'action vient de [LedgerConfig.editable].
+  final VoidCallback? onEdit;
 }
 
 class LedgerCell {
@@ -83,6 +88,7 @@ class LedgerConfig {
     required this.emptyTitle,
     required this.emptyHint,
     this.nameSortLabel,
+    this.editable = false,
   });
 
   final List<Col> columns;
@@ -94,6 +100,10 @@ class LedgerConfig {
 
   /// « Prestation » pour les opérations, « Libellé » pour les dépenses.
   final String? nameSortLabel;
+
+  /// Ajoute la colonne d'action en fin de tableau. Portée par la config et
+  /// non par les lignes : la colonne doit rester en place même filtre vide.
+  final bool editable;
 }
 
 /// Ossature commune aux écrans Opérations, Dépenses et Prélèvements :
@@ -121,6 +131,13 @@ class LedgerScreen extends StatelessWidget {
   final bool loading;
   final Object? error;
   final VoidCallback? onRetry;
+
+  /// Colonnes réellement rendues : la colonne d'action s'ajoute en bout de
+  /// ligne sans que chaque configuration ait à la déclarer.
+  List<Col> get _columns => [
+    ...config.columns,
+    if (config.editable) const Col('', width: 44),
+  ];
 
   /// Groupement par jour, du plus récent au plus ancien.
   Map<DateTime, List<LedgerItem>> get _groups {
@@ -172,7 +189,7 @@ class LedgerScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        TableHeaderRow(cols: config.columns, tinted: true),
+                        TableHeaderRow(cols: _columns, tinted: true),
                         Expanded(
                           child: groups.isEmpty
                               ? EmptyState(
@@ -229,7 +246,10 @@ class LedgerScreen extends StatelessWidget {
       ),
       for (final r in rows)
         DataRow2(
-          cols: config.columns,
+          cols: _columns,
+          // Toute la ligne est cliquable : corriger une faute de frappe ne
+          // doit pas demander de viser une icône de 14 pixels.
+          onTap: r.onEdit,
           cells: [
             for (var i = 0; i < config.columns.length; i++)
               Text(
@@ -240,6 +260,7 @@ class LedgerScreen extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+            if (config.editable) RowEditButton(onTap: r.onEdit),
           ],
         ),
     ];
@@ -500,6 +521,7 @@ class LedgerConfigs {
     sumLabel: 'Total entrant filtré',
     emptyTitle: 'Aucun résultat pour cette recherche.',
     emptyHint: 'Essayez un autre terme, ou changez le tri.',
+    editable: true,
   );
 
   static LedgerConfig depenses(BuildContext c) => LedgerConfig(
@@ -515,6 +537,7 @@ class LedgerConfigs {
     sumLabel: 'Total sortant filtré',
     emptyTitle: 'Aucun résultat pour cette recherche.',
     emptyHint: 'Essayez un autre terme, ou changez le tri.',
+    editable: true,
   );
 
   static LedgerConfig prelevements(BuildContext c) => LedgerConfig(
@@ -528,6 +551,7 @@ class LedgerConfigs {
     sumLabel: 'Total prélevé',
     emptyTitle: 'Aucun prélèvement ce mois-ci.',
     emptyHint: 'Les données arrivent par import de sauvegarde.',
+    editable: true,
   );
 }
 
@@ -538,9 +562,11 @@ LedgerItem depenseItem(
   required String libelle,
   required String categorie,
   required int montant,
+  VoidCallback? onEdit,
 }) => LedgerItem(
   date: date,
   amount: montant,
+  onEdit: onEdit,
   cells: [
     LedgerCell(libelle),
     LedgerCell(categorie, color: categoryColor(context, categorie)),

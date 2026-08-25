@@ -83,6 +83,46 @@ class DBService extends GetxService {
     }
   }
 
+  /// Corrige une opération existante. L'identifiant ne change pas : c'est lui
+  /// qui porte la déduplication à l'import d'une sauvegarde.
+  /// Retourne le nombre de lignes touchées — 0 si l'identifiant n'existe plus.
+  Future<int> updateOperation({
+    required String id,
+    required String nomOperation,
+    required int prixOperation,
+    required int quantiteOperation,
+    required DateTime dateOperation,
+  }) async {
+    return await (database.update(
+      database.operations,
+    )..where((tbl) => tbl.idOperation.equals(id))).write(
+      OperationsCompanion(
+        nomOperation: drift_data_class.Value(nomOperation),
+        prixOperation: drift_data_class.Value(prixOperation),
+        quantiteOperation: drift_data_class.Value(quantiteOperation),
+        dateOperation: drift_data_class.Value(dateOperation),
+      ),
+    );
+  }
+
+  /// Corrige une dépense existante. Voir [updateOperation] pour l'identifiant.
+  Future<int> updateDepense({
+    required String id,
+    required String libelle,
+    required int montant,
+    required DateTime dateDepense,
+  }) async {
+    return await (database.update(
+      database.depenses,
+    )..where((tbl) => tbl.idDepense.equals(id))).write(
+      DepensesCompanion(
+        libelle: drift_data_class.Value(libelle),
+        montant: drift_data_class.Value(montant),
+        dateDepense: drift_data_class.Value(dateDepense),
+      ),
+    );
+  }
+
   Future<List<Operation>> getAllOperations() async {
     List<Operation> out = await database.select(database.operations).get();
     return out;
@@ -147,6 +187,40 @@ class DBService extends GetxService {
                 prelevement.datePrelevement ?? DateTime.timestamp(),
           ),
         );
+  }
+
+  /// Corrige un prélèvement existant. Voir [updateOperation] pour l'identifiant.
+  Future<int> updatePrelevement({
+    required String id,
+    required int montant,
+    required DateTime datePrelevement,
+  }) async {
+    return await (database.update(
+      database.prelevements,
+    )..where((tbl) => tbl.idPrelevement.equals(id))).write(
+      PrelevementsCompanion(
+        montant: drift_data_class.Value(montant),
+        datePrelevement: drift_data_class.Value(datePrelevement),
+      ),
+    );
+  }
+
+  /// Corrige un relevé existant. Voir [updateOperation] pour l'identifiant.
+  Future<int> updateReleve({
+    required String id,
+    required double compteur,
+    required double sousCompteur,
+    required DateTime dateReleve,
+  }) async {
+    return await (database.update(
+      database.releves,
+    )..where((tbl) => tbl.idReleve.equals(id))).write(
+      RelevesCompanion(
+        compteur: drift_data_class.Value(compteur),
+        sousCompteur: drift_data_class.Value(sousCompteur),
+        dateReleve: drift_data_class.Value(dateReleve),
+      ),
+    );
   }
 
   Future<List<Releve>> getAllReleves() async {

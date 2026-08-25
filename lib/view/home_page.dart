@@ -45,7 +45,8 @@ class HomePage extends StatelessWidget {
             ),
             AppSection.operations => (
               'Opérations',
-              'Prestations encaissées · recherche, tri, sous-totaux par jour',
+              'Prestations encaissées · sous-totaux par jour · '
+                  'cliquez une ligne pour la corriger',
               LedgerScreen(
                 config: LedgerConfigs.operations(context),
                 filter: SearchFilter(
@@ -55,7 +56,7 @@ class HomePage extends StatelessWidget {
                 ),
                 sort: c.sortOperations,
                 onSortChanged: (s) => c.setSort(AppSection.operations, s),
-                items: c.loading ? const [] : c.operationItems(),
+                items: c.loading ? const [] : c.operationItems(context),
                 loading: c.loading,
                 error: c.error,
                 onRetry: c.load,
@@ -63,7 +64,8 @@ class HomePage extends StatelessWidget {
             ),
             AppSection.expenses => (
               'Dépenses',
-              'Achats, charges et consommables · recherche par libellé',
+              'Achats, charges et consommables · '
+                  'cliquez une ligne pour la corriger',
               LedgerScreen(
                 config: LedgerConfigs.depenses(context),
                 filter: SearchFilter(
@@ -81,7 +83,7 @@ class HomePage extends StatelessWidget {
             ),
             AppSection.drawings => (
               'Prélèvements',
-              'Filtre mensuel · bloqué au-delà du mois courant',
+              'Filtre mensuel · cliquez une ligne pour la corriger',
               LedgerScreen(
                 config: LedgerConfigs.prelevements(context),
                 filter: MonthFilter(
@@ -95,7 +97,7 @@ class HomePage extends StatelessWidget {
                 ),
                 sort: LedgerSort.date,
                 onSortChanged: (_) {},
-                items: c.loading ? const [] : c.prelevementItems(),
+                items: c.loading ? const [] : c.prelevementItems(context),
                 loading: c.loading,
                 error: c.error,
                 onRetry: c.load,
@@ -103,12 +105,14 @@ class HomePage extends StatelessWidget {
             ),
             AppSection.meterReadings => (
               'Relevés électricité',
-              'Index général et sous-compteur · consommation par différence',
+              'Index général et sous-compteur · consommation par différence · '
+                  'crayon pour corriger',
               RelevesScreen(
                 releves: c.releves,
                 loading: c.loading,
                 error: c.error,
                 onRetry: c.load,
+                onEdit: (r) => c.editReleve(context, r),
               ),
             ),
             AppSection.jiroSharing => (

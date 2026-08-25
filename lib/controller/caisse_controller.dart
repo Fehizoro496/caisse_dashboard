@@ -13,6 +13,7 @@ import 'package:caisse_dashboard/view/screens/jiro_screen.dart';
 import 'package:caisse_dashboard/view/screens/ledger_screen.dart';
 import 'package:caisse_dashboard/view/widgets/app_shell.dart';
 import 'package:caisse_dashboard/view/widgets/app_toast.dart';
+import 'package:caisse_dashboard/view/widgets/record_editor.dart';
 import 'package:caisse_dashboard/view/widgets/stat_cards.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -398,7 +399,7 @@ class CaisseController extends GetxController {
 
   // ─────────────────────────────── Écrans-listes ───────────────────────────────
 
-  List<LedgerItem> operationItems() {
+  List<LedgerItem> operationItems(BuildContext context) {
     final q = qOperations.trim().toLowerCase();
     final list = _operations
         .where((o) => q.isEmpty || o.nomOperation.toLowerCase().contains(q))
@@ -417,6 +418,7 @@ class CaisseController extends GetxController {
         LedgerItem(
           date: o.dateOperation,
           amount: o.prixOperation * o.quantiteOperation,
+          onEdit: () => editOperation(context, o),
           cells: [
             LedgerCell(o.nomOperation),
             LedgerCell(Fmt.num(o.prixOperation), mono: true),
@@ -451,11 +453,12 @@ class CaisseController extends GetxController {
           libelle: d.libelle,
           categorie: CategoryRules.of(d.libelle),
           montant: d.montant,
+          onEdit: () => editDepense(context, d),
         ),
     ];
   }
 
-  List<LedgerItem> prelevementItems() {
+  List<LedgerItem> prelevementItems(BuildContext context) {
     final list =
         _prelevements
             .where(
@@ -470,6 +473,7 @@ class CaisseController extends GetxController {
         LedgerItem(
           date: p.datePrelevement,
           amount: p.montant,
+          onEdit: () => editPrelevement(context, p),
           cells: [
             LedgerCell(Fmt.cap(Fmt.longDate(p.datePrelevement))),
             LedgerCell(Fmt.num(p.montant), mono: true),
@@ -477,6 +481,149 @@ class CaisseController extends GetxController {
           ],
         ),
     ];
+  }
+
+  // ─────────────────────────────── Corrections ───────────────────────────────
+  // Les données arrivent par import ; la saisie d'origine se fait ailleurs.
+  // Ces deux méthodes ne servent qu'à rattraper une faute de frappe : elles
+  // réécrivent une ligne existante sans jamais toucher à son identifiant.
+
+  Future<void> editOperation(BuildContext context, Operation o) async {
+    final edit = await showOperationEditor(
+      context,
+      nom: o.nomOperation,
+      prixUnitaire: o.prixOperation,
+      quantite: o.quantiteOperation,
+      date: o.dateOperation,
+    );
+    if (edit == null) return;
+    try {
+      final touched = await _db.updateOperation(
+        id: o.idOperation,
+        nomOperation: edit.nom,
+        prixOperation: edit.prixUnitaire,
+        quantiteOperation: edit.quantite,
+        dateOperation: edit.date,
+      );
+      if (touched == 0) {
+        _toast(
+          'Opération introuvable',
+          'La ligne a disparu de la base entre-temps — rien n\'a été écrit.',
+          ok: false,
+        );
+        return;
+      }
+      // La date courante ne doit pas sauter au dernier enregistrement à cause
+      // d'une simple correction.
+      await load(keepDate: true);
+      _toast(
+        'Opération modifiée',
+        '${edit.nom} · ${Fmt.ar(edit.prixUnitaire * edit.quantite)}',
+      );
+    } catch (e) {
+      _toast('Modification impossible', '$e', ok: false);
+    }
+  }
+
+  Future<void> editDepense(BuildContext context, Depense d) async {
+    final edit = await showDepenseEditor(
+      context,
+      libelle: d.libelle,
+      montant: d.montant,
+      date: d.dateDepense,
+    );
+    if (edit == null) return;
+    try {
+      final touched = await _db.updateDepense(
+        id: d.idDepense,
+        libelle: edit.libelle,
+        montant: edit.montant,
+        dateDepense: edit.date,
+      );
+      if (touched == 0) {
+        _toast(
+          'Dépense introuvable',
+          'La ligne a disparu de la base entre-temps — rien n\'a été écrit.',
+          ok: false,
+        );
+        return;
+      }
+      await load(keepDate: true);
+      _toast(
+        'Dépense modifiée',
+        '${edit.libelle} · ${Fmt.ar(edit.montant)}',
+      );
+    } catch (e) {
+      _toast('Modification impossible', '$e', ok: false);
+    }
+  }
+
+  Future<void> editPrelevement(BuildContext context, Prelevement p) async {
+    final edit = await showPrelevementEditor(
+      context,
+      montant: p.montant,
+      date: p.datePrelevement,
+    );
+    if (edit == null) return;
+    try {
+      final touched = await _db.updatePrelevement(
+        id: p.idPrelevement,
+        montant: edit.montant,
+        datePrelevement: edit.date,
+      );
+      if (touched == 0) {
+        _toast(
+          'Prélèvement introuvable',
+          'La ligne a disparu de la base entre-temps — rien n\'a été écrit.',
+          ok: false,
+        );
+        return;
+      }
+      await load(keepDate: true);
+      // Déplacer un prélèvement d'un mois à l'autre le sortirait du filtre :
+      // on suit la ligne plutôt que de laisser l'utilisateur la chercher.
+      mois = DateTime(edit.date.year, edit.date.month);
+      update();
+      _toast('Prélèvement modifié', Fmt.ar(edit.montant));
+    } catch (e) {
+      _toast('Modification impossible', '$e', ok: false);
+    }
+  }
+
+  Future<void> editReleve(BuildContext context, ReleveElectricite r) async {
+    final edit = await showReleveEditor(
+      context,
+      compteur: r.compteur,
+      sousCompteur: r.sousCompteur,
+      date: r.date,
+    );
+    if (edit == null) return;
+    try {
+      final touched = await _db.updateReleve(
+        id: r.id,
+        compteur: edit.compteur,
+        sousCompteur: edit.sousCompteur,
+        dateReleve: edit.date,
+      );
+      if (touched == 0) {
+        _toast(
+          'Relevé introuvable',
+          'La ligne a disparu de la base entre-temps — rien n\'a été écrit.',
+          ok: false,
+        );
+        return;
+      }
+      await load(keepDate: true);
+      // La consommation n'est pas stockée : corriger un index rejoue les deux
+      // périodes qui l'encadrent, et le partage JIRO qui s'y appuie.
+      _toast(
+        'Relevé modifié',
+        'Général ${Fmt.dec(edit.compteur)} · '
+            'sous-compteur ${Fmt.dec(edit.sousCompteur)}',
+      );
+    } catch (e) {
+      _toast('Modification impossible', '$e', ok: false);
+    }
   }
 
   // ────────────────────────────────── JIRO ──────────────────────────────────

@@ -24,6 +24,7 @@ class RelevesScreen extends StatefulWidget {
     this.loading = false,
     this.error,
     this.onRetry,
+    this.onEdit,
   });
 
   /// Ordre indifférent : l'écran trie lui-même.
@@ -31,6 +32,9 @@ class RelevesScreen extends StatefulWidget {
   final bool loading;
   final Object? error;
   final VoidCallback? onRetry;
+
+  /// Correction d'un relevé. Absent = tableau en lecture seule.
+  final void Function(ReleveElectricite)? onEdit;
 
   @override
   State<RelevesScreen> createState() => _RelevesScreenState();
@@ -112,12 +116,13 @@ class _RelevesScreenState extends State<RelevesScreen> {
     final desc = [...widget.releves]..sort((a, b) => b.date.compareTo(a.date));
     final asc = _asc;
 
-    const cols = [
-      Col('Date du relevé', flex: 3),
-      Col('Général (kWh)', flex: 2, numeric: true),
-      Col('Sous-compteur', flex: 2, numeric: true),
-      Col('Conso période', flex: 2, numeric: true),
-      Col('', width: 30),
+    final cols = [
+      const Col('Date du relevé', flex: 3),
+      const Col('Général (kWh)', flex: 2, numeric: true),
+      const Col('Sous-compteur', flex: 2, numeric: true),
+      const Col('Conso période', flex: 2, numeric: true),
+      const Col('', width: 30),
+      if (widget.onEdit != null) const Col('', width: 44),
     ];
 
     return AsyncPane(
@@ -165,7 +170,7 @@ class _RelevesScreenState extends State<RelevesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const TableHeaderRow(cols: cols, tinted: true),
+                  TableHeaderRow(cols: cols, tinted: true),
                   Expanded(
                     child: desc.isEmpty
                         ? const EmptyState(
@@ -224,6 +229,13 @@ class _RelevesScreenState extends State<RelevesScreen> {
                                         size: 13,
                                         color: t.faint,
                                       ),
+                                      // Le clic sur la ligne déplie déjà le
+                                      // détail : la correction passe par le
+                                      // crayon, pas par la ligne entière.
+                                      if (widget.onEdit != null)
+                                        RowEditButton(
+                                          onTap: () => widget.onEdit!(r),
+                                        ),
                                     ],
                                   ),
                                   if (open)

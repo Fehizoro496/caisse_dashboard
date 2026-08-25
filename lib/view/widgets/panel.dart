@@ -192,6 +192,53 @@ class _DataRow2State extends State<DataRow2> {
   }
 }
 
+/// Crayon de fin de ligne, dans les tableaux dont les lignes sont corrigeables.
+/// Discret au repos, il ne prend la couleur d'accent qu'au survol : un tableau
+/// de comptabilité n'est pas une barre d'outils.
+class RowEditButton extends StatefulWidget {
+  const RowEditButton({super.key, required this.onTap, this.tooltip = 'Modifier'});
+
+  final VoidCallback? onTap;
+  final String tooltip;
+
+  @override
+  State<RowEditButton> createState() => _RowEditButtonState();
+}
+
+class _RowEditButtonState extends State<RowEditButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    if (widget.onTap == null) return const SizedBox.shrink();
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: _hover ? t.accentSoft : Colors.transparent,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(
+              Icons.edit_outlined,
+              size: 14,
+              color: _hover ? t.accent : t.faint,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Bandeau de sous-total (pied de tableau ou tête de groupe).
 class TotalBar extends StatelessWidget {
   const TotalBar({
