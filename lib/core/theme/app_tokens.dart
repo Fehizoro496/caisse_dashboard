@@ -21,6 +21,9 @@ class AppTokens extends ThemeExtension<AppTokens> {
     required this.expense,
     required this.drawing,
     required this.electric,
+    required this.success,
+    required this.danger,
+    required this.warning,
     required this.shadow,
     this.radius = 14,
     this.radiusSmall = 10,
@@ -48,6 +51,12 @@ class AppTokens extends ThemeExtension<AppTokens> {
   final Color drawing; // prélèvement
   final Color electric; // électricité / relevés
 
+  /// Retour d'action (toasts, validations). Distinct des sémantiques métier :
+  /// un import réussi n'est pas une entrée d'argent.
+  final Color success;
+  final Color danger;
+  final Color warning;
+
   final List<BoxShadow> shadow;
 
   final double radius;
@@ -70,6 +79,9 @@ class AppTokens extends ThemeExtension<AppTokens> {
     expense: Color(0xFFC8785C),
     drawing: Color(0xFF8570C9),
     electric: Color(0xFFBF9A3D),
+    success: Color(0xFF2E9E7E),
+    danger: Color(0xFFCE5150),
+    warning: Color(0xFFC08F2F),
     shadow: [
       BoxShadow(color: Color(0x0A161C2D), blurRadius: 2, offset: Offset(0, 1)),
       BoxShadow(
@@ -96,6 +108,9 @@ class AppTokens extends ThemeExtension<AppTokens> {
     expense: Color(0xFFD6957A),
     drawing: Color(0xFFA898E0),
     electric: Color(0xFFD0B064),
+    success: Color(0xFF56B79B),
+    danger: Color(0xFFE38381),
+    warning: Color(0xFFDBB25E),
     shadow: [
       BoxShadow(color: Color(0x4D000000), blurRadius: 2, offset: Offset(0, 1)),
       BoxShadow(
@@ -127,6 +142,9 @@ class AppTokens extends ThemeExtension<AppTokens> {
     Color? expense,
     Color? drawing,
     Color? electric,
+    Color? success,
+    Color? danger,
+    Color? warning,
     List<BoxShadow>? shadow,
     double? radius,
     double? radiusSmall,
@@ -148,6 +166,9 @@ class AppTokens extends ThemeExtension<AppTokens> {
       expense: expense ?? this.expense,
       drawing: drawing ?? this.drawing,
       electric: electric ?? this.electric,
+      success: success ?? this.success,
+      danger: danger ?? this.danger,
+      warning: warning ?? this.warning,
       shadow: shadow ?? this.shadow,
       radius: radius ?? this.radius,
       radiusSmall: radiusSmall ?? this.radiusSmall,
@@ -175,6 +196,9 @@ class AppTokens extends ThemeExtension<AppTokens> {
       expense: c(expense, other.expense),
       drawing: c(drawing, other.drawing),
       electric: c(electric, other.electric),
+      success: c(success, other.success),
+      danger: c(danger, other.danger),
+      warning: c(warning, other.warning),
       shadow: t < .5 ? shadow : other.shadow,
       radius: lerpDouble(radius, other.radius, t),
       radiusSmall: lerpDouble(radiusSmall, other.radiusSmall, t),
