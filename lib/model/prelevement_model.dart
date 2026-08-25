@@ -3,20 +3,24 @@ class PrelevementModel {
   late int montant;
   DateTime? datePrelevement;
 
-  PrelevementModel(
-      {this.idPrelevement, required this.montant, this.datePrelevement});
+  PrelevementModel({
+    this.idPrelevement,
+    required this.montant,
+    this.datePrelevement,
+  });
 
   factory PrelevementModel.fromJson(Map<String, dynamic> json) =>
       PrelevementModel(
-          idPrelevement: json['idPrelevement'],
-          montant: json['montant'],
-          datePrelevement: json['datePrelevement']);
+        idPrelevement: json['idPrelevement'],
+        montant: json['montant'],
+        datePrelevement: json['datePrelevement'],
+      );
 
   Map<String, dynamic> toJson() => {
-        'idFacture': idPrelevement,
-        'client': montant,
-        'dateFacture': datePrelevement
-      };
+    'idFacture': idPrelevement,
+    'client': montant,
+    'dateFacture': datePrelevement,
+  };
 
   @override
   String toString() {

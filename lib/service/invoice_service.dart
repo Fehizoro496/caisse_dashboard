@@ -29,18 +29,16 @@ class InvoiceService extends GetxService {
   }
 
   void _getClientName() {
-    Get.dialog(AlertDialog(
-      surfaceTintColor: const Color(0xFFFFFFFF),
-      title: const Text(
-        "Client Name",
-        textAlign: TextAlign.center,
-      ),
-      content: TextFormField(
-        controller: clientController,
-        decoration: const InputDecoration(label: Text("Nom du client")),
-      ),
-      actions: [
-        TextButton(
+    Get.dialog(
+      AlertDialog(
+        surfaceTintColor: const Color(0xFFFFFFFF),
+        title: const Text("Client Name", textAlign: TextAlign.center),
+        content: TextFormField(
+          controller: clientController,
+          decoration: const InputDecoration(label: Text("Nom du client")),
+        ),
+        actions: [
+          TextButton(
             onPressed: () {
               client = clientController.text;
               _generateInvoicePdf().then((value) {
@@ -48,38 +46,42 @@ class InvoiceService extends GetxService {
                 Get.close(1);
               });
             },
-            child: const Text("OUI"))
-      ],
-    ));
+            child: const Text("OUI"),
+          ),
+        ],
+      ),
+    );
   }
 
   void invoiceProcess(
-      List<OperationModel> listInvoiceLine, List<String> listID) {
+    List<OperationModel> listInvoiceLine,
+    List<String> listID,
+  ) {
     this.listInvoiceLine.addAll(listInvoiceLine);
     listOperationsID.addAll(listID);
 
-    Get.dialog(AlertDialog(
-      surfaceTintColor: const Color(0xFFFFFFFF),
-      title: const Text('Facturation', textAlign: TextAlign.center),
-      content: const Text('Voulez vous imprimer une facture?'),
-      actions: [
-        TextButton(
+    Get.dialog(
+      AlertDialog(
+        surfaceTintColor: const Color(0xFFFFFFFF),
+        title: const Text('Facturation', textAlign: TextAlign.center),
+        content: const Text('Voulez vous imprimer une facture?'),
+        actions: [
+          TextButton(
             onPressed: () {
               Get.close(1);
               _getClientName();
             },
-            child: const Text("OUI")),
-        TextButton(
-          onPressed: () {
-            Get.close(1);
-          },
-          child: const Text(
-            "NON",
-            style: TextStyle(color: Colors.red),
+            child: const Text("OUI"),
           ),
-        ),
-      ],
-    ));
+          TextButton(
+            onPressed: () {
+              Get.close(1);
+            },
+            child: const Text("NON", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool> _generateInvoicePdf() async {
@@ -100,72 +102,92 @@ class InvoiceService extends GetxService {
         build: (pw.Context context) {
           return pw.Column(
             children: [
-              pw.Text('FACTURE',
-                  style: pw.TextStyle(
-                      fontSize: 32, fontWeight: pw.FontWeight.bold)),
-              pw.Text('Ref: $factureID',
-                  style: pw.TextStyle(
-                      fontSize: 32, fontWeight: pw.FontWeight.bold)),
+              pw.Text(
+                'FACTURE',
+                style: pw.TextStyle(
+                  fontSize: 32,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Text(
+                'Ref: $factureID',
+                style: pw.TextStyle(
+                  fontSize: 32,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
               pw.SizedBox(height: 40),
               pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Column(
-                      children: [
-                        pw.Text('MULTI-SERVICE ITAOSY ANDRANONAHOATRA',
-                            style: const pw.TextStyle(fontSize: 12)),
-                        pw.Text('033 60 371 38',
-                            style: const pw.TextStyle(fontSize: 12)),
-                      ],
-                    ),
-                    pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Column(
+                    children: [
+                      pw.Text(
+                        'MULTI-SERVICE ITAOSY ANDRANONAHOATRA',
+                        style: const pw.TextStyle(fontSize: 12),
+                      ),
+                      pw.Text(
+                        '033 60 371 38',
+                        style: const pw.TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.start,
                         children: [
-                          pw.Row(
-                              mainAxisAlignment: pw.MainAxisAlignment.start,
-                              children: [
-                                pw.Text('Doit:',
-                                    style: const pw.TextStyle(
-                                        fontSize: 12,
-                                        decoration:
-                                            pw.TextDecoration.underline)),
-                                pw.Text(' $client',
-                                    style: const pw.TextStyle(fontSize: 12)),
-                              ]),
-                          pw.Row(
-                              mainAxisAlignment: pw.MainAxisAlignment.start,
-                              children: [
-                                pw.Text('Date:',
-                                    style: const pw.TextStyle(
-                                        fontSize: 12,
-                                        decoration:
-                                            pw.TextDecoration.underline)),
-                                pw.Text(
-                                    ' ${DateTime.now().day.toString().length == 1 ? '0' : ''}${DateTime.now().day}/${DateTime.now().month.toString().length == 1 ? '0' : ''}${DateTime.now().month}/${DateTime.now().year}',
-                                    style: const pw.TextStyle(fontSize: 12)),
-                              ]),
-                        ]),
-                  ]),
+                          pw.Text(
+                            'Doit:',
+                            style: const pw.TextStyle(
+                              fontSize: 12,
+                              decoration: pw.TextDecoration.underline,
+                            ),
+                          ),
+                          pw.Text(
+                            ' $client',
+                            style: const pw.TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'Date:',
+                            style: const pw.TextStyle(
+                              fontSize: 12,
+                              decoration: pw.TextDecoration.underline,
+                            ),
+                          ),
+                          pw.Text(
+                            ' ${DateTime.now().day.toString().length == 1 ? '0' : ''}${DateTime.now().day}/${DateTime.now().month.toString().length == 1 ? '0' : ''}${DateTime.now().month}/${DateTime.now().year}',
+                            style: const pw.TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
               pw.SizedBox(height: 20),
               pw.TableHelper.fromTextArray(
                 headerAlignment: pw.Alignment.center,
-                cellStyle: const pw.TextStyle(
-                  fontSize: 10,
-                ),
+                cellStyle: const pw.TextStyle(fontSize: 10),
                 cellDecoration: (index, row, col) {
                   if (index == listInvoiceLine.length &&
                       (col == 3 || col == 4)) {
                     return const pw.BoxDecoration(
-                        border: pw.Border(
-                      top: pw.BorderSide(width: 1),
-                      bottom: pw.BorderSide(width: 1),
-                    ));
+                      border: pw.Border(
+                        top: pw.BorderSide(width: 1),
+                        bottom: pw.BorderSide(width: 1),
+                      ),
+                    );
                   }
                   if (index != listInvoiceLine.length) {
-                    return pw.BoxDecoration(
-                      border: pw.Border.all(width: 1),
-                    );
+                    return pw.BoxDecoration(border: pw.Border.all(width: 1));
                   }
                   return const pw.BoxDecoration();
                 },
@@ -188,7 +210,7 @@ class InvoiceService extends GetxService {
                   'Désignation',
                   'Quantité',
                   'PU (en Ar)',
-                  'Total'
+                  'Total',
                 ],
                 data: [
                   ...listInvoiceLine.mapIndexed((index, operation) {
@@ -197,7 +219,7 @@ class InvoiceService extends GetxService {
                       operation.nomOperation,
                       formatNumber(operation.quantiteOperation),
                       formatNumber(operation.prixOperation),
-                      "${formatNumber(operation.quantiteOperation * operation.prixOperation)} Ar"
+                      "${formatNumber(operation.quantiteOperation * operation.prixOperation)} Ar",
                     ];
                   }),
                   ['', '', '', 'TOTAL', "${formatNumber(total)} Ar"],
@@ -205,7 +227,8 @@ class InvoiceService extends GetxService {
               ),
               pw.SizedBox(height: 20),
               pw.Text(
-                  "Présente facture arrêtée à la somme de ${chiffreEnLettre(total.floor()).trim()} Ariary."),
+                "Présente facture arrêtée à la somme de ${chiffreEnLettre(total.floor()).trim()} Ariary.",
+              ),
               pw.SizedBox(height: 20),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,

@@ -18,51 +18,67 @@ class DBService extends GetxService {
   }
 
   Future<int> saveDepense(DepenseModel depense) async {
-    return await database.into(database.depenses).insert(
-        DepensesCompanion.insert(
+    return await database
+        .into(database.depenses)
+        .insert(
+          DepensesCompanion.insert(
             idDepense: generateUid(),
             libelle: depense.libelle,
             montant: depense.montant,
-            dateDepense: depense.dateDepense ?? DateTime.timestamp()));
+            dateDepense: depense.dateDepense ?? DateTime.timestamp(),
+          ),
+        );
   }
 
   Future<String> saveOperation(OperationModel operation) async {
     final String id = generateUid();
-    await database.into(database.operations).insert(OperationsCompanion.insert(
-        idOperation: id,
-        nomOperation: operation.nomOperation,
-        prixOperation: operation.prixOperation,
-        quantiteOperation: operation.quantiteOperation,
-        dateOperation: operation.dateOperation ?? DateTime.timestamp()));
+    await database
+        .into(database.operations)
+        .insert(
+          OperationsCompanion.insert(
+            idOperation: id,
+            nomOperation: operation.nomOperation,
+            prixOperation: operation.prixOperation,
+            quantiteOperation: operation.quantiteOperation,
+            dateOperation: operation.dateOperation ?? DateTime.timestamp(),
+          ),
+        );
     return id;
   }
 
   Future<String> saveFacture({required String client, DateTime? date}) async {
-    final String id =
-        generateInvoiceId(client: client, date: date ?? DateTime.now());
-    await database.into(database.factures).insert(FacturesCompanion.insert(
-        idFacture: id,
-        client: client,
-        dateFacture: date ?? DateTime.timestamp()));
+    final String id = generateInvoiceId(
+      client: client,
+      date: date ?? DateTime.now(),
+    );
+    await database
+        .into(database.factures)
+        .insert(
+          FacturesCompanion.insert(
+            idFacture: id,
+            client: client,
+            dateFacture: date ?? DateTime.timestamp(),
+          ),
+        );
     return id;
   }
 
   Future<Operation?> getOperationById(String id) {
-    return (database.select(database.operations)
-          ..where((tbl) => tbl.idOperation.equals(id)))
-        .getSingleOrNull();
+    return (database.select(
+      database.operations,
+    )..where((tbl) => tbl.idOperation.equals(id))).getSingleOrNull();
   }
 
   Future<void> assignFactureInOperation(
-      String operationID, String factureID) async {
+    String operationID,
+    String factureID,
+  ) async {
     final operation = await getOperationById(operationID);
     if (operation != null) {
-      await (database.update(database.operations)
-            ..where((tbl) => tbl.idOperation.equals(operationID)))
-          .write(
-        OperationsCompanion(
-          facture: drift_data_class.Value(factureID),
-        ),
+      await (database.update(
+        database.operations,
+      )..where((tbl) => tbl.idOperation.equals(operationID))).write(
+        OperationsCompanion(facture: drift_data_class.Value(factureID)),
       );
     }
   }
@@ -83,20 +99,23 @@ class DBService extends GetxService {
   }
 
   Future<DateTime> getLastInsertDate() async {
-    final lastOperation = await (database.select(database.operations)
-          ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateOperation)])
-          ..limit(1))
-        .getSingleOrNull();
+    final lastOperation =
+        await (database.select(database.operations)
+              ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateOperation)])
+              ..limit(1))
+            .getSingleOrNull();
 
-    final lastDepense = await (database.select(database.depenses)
-          ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateDepense)])
-          ..limit(1))
-        .getSingleOrNull();
+    final lastDepense =
+        await (database.select(database.depenses)
+              ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateDepense)])
+              ..limit(1))
+            .getSingleOrNull();
 
-    final lastPrelevements = await (database.select(database.prelevements)
-          ..orderBy([(tbl) => OrderingTerm.desc(tbl.datePrelevement)])
-          ..limit(1))
-        .getSingleOrNull();
+    final lastPrelevements =
+        await (database.select(database.prelevements)
+              ..orderBy([(tbl) => OrderingTerm.desc(tbl.datePrelevement)])
+              ..limit(1))
+            .getSingleOrNull();
 
     final dates = [
       lastOperation!.dateOperation,
@@ -111,19 +130,23 @@ class DBService extends GetxService {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-    return await (database.select(database.prelevements)
-          ..where((dep) =>
-              dep.datePrelevement.isBetweenValues(startOfDay, endOfDay)))
+    return await (database.select(database.prelevements)..where(
+          (dep) => dep.datePrelevement.isBetweenValues(startOfDay, endOfDay),
+        ))
         .get();
   }
 
   Future<int> savePrelevement(PrelevementModel prelevement) async {
-    return await database.into(database.prelevements).insert(
-        PrelevementsCompanion.insert(
+    return await database
+        .into(database.prelevements)
+        .insert(
+          PrelevementsCompanion.insert(
             idPrelevement: generateUid(),
             montant: prelevement.montant,
             datePrelevement:
-                prelevement.datePrelevement ?? DateTime.timestamp()));
+                prelevement.datePrelevement ?? DateTime.timestamp(),
+          ),
+        );
   }
 
   Future<List<Releve>> getAllReleves() async {
@@ -140,7 +163,8 @@ class DBService extends GetxService {
   /// - 'date': la date du relevé (exacte ou interpolée)
   /// - 'isInterpolated': true si la valeur a été calculée par interpolation
   Future<Map<String, dynamic>?> getSousCompteurForCompteurValue(
-      double compteurValue) async {
+    double compteurValue,
+  ) async {
     final releves = await getAllReleves();
     if (releves.isEmpty) return null;
 
@@ -218,8 +242,9 @@ class DBService extends GetxService {
     final dateBas = releveBas.dateReleve;
     final dateHaut = releveHaut.dateReleve;
     final diffMillis = dateHaut.difference(dateBas).inMilliseconds;
-    final dateInterpole =
-        dateBas.add(Duration(milliseconds: (diffMillis * ratio).round()));
+    final dateInterpole = dateBas.add(
+      Duration(milliseconds: (diffMillis * ratio).round()),
+    );
 
     return {
       'releve': null,
@@ -232,20 +257,25 @@ class DBService extends GetxService {
   }
 
   Future<int> saveReleve(ReleveModel releve) async {
-    return await database.into(database.releves).insert(RelevesCompanion.insert(
-        idReleve: generateUid(),
-        compteur: releve.compteur,
-        sousCompteur: releve.sousCompteur,
-        dateReleve: releve.dateReleve ?? DateTime.timestamp()));
+    return await database
+        .into(database.releves)
+        .insert(
+          RelevesCompanion.insert(
+            idReleve: generateUid(),
+            compteur: releve.compteur,
+            sousCompteur: releve.sousCompteur,
+            dateReleve: releve.dateReleve ?? DateTime.timestamp(),
+          ),
+        );
   }
 
   Future<List<Operation>> getOperationsByDate(DateTime date) async {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-    return await (database.select(database.operations)
-          ..where(
-              (op) => op.dateOperation.isBetweenValues(startOfDay, endOfDay)))
+    return await (database.select(database.operations)..where(
+          (op) => op.dateOperation.isBetweenValues(startOfDay, endOfDay),
+        ))
         .get();
   }
 
@@ -253,27 +283,29 @@ class DBService extends GetxService {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-    return await (database.select(database.depenses)
-          ..where(
-              (dep) => dep.dateDepense.isBetweenValues(startOfDay, endOfDay)))
+    return await (database.select(database.depenses)..where(
+          (dep) => dep.dateDepense.isBetweenValues(startOfDay, endOfDay),
+        ))
         .get();
   }
 
   // CRUD FacturesJiro
   Future<List<FacturesJiroData>> getAllFacturesJiro() async {
-    return await (database.select(database.facturesJiro)
-          ..orderBy([(t) => OrderingTerm.desc(t.dateFacture)]))
-        .get();
+    return await (database.select(
+      database.facturesJiro,
+    )..orderBy([(t) => OrderingTerm.desc(t.dateFacture)])).get();
   }
 
   Future<FacturesJiroData?> getFactureJiroById(String id) {
-    return (database.select(database.facturesJiro)
-          ..where((t) => t.idFactureJiro.equals(id)))
-        .getSingleOrNull();
+    return (database.select(
+      database.facturesJiro,
+    )..where((t) => t.idFactureJiro.equals(id))).getSingleOrNull();
   }
 
   Future<int> saveFactureJiro(FactureJiroModel facture) async {
-    return await database.into(database.facturesJiro).insert(
+    return await database
+        .into(database.facturesJiro)
+        .insert(
           FacturesJiroCompanion.insert(
             idFactureJiro: generateUid(),
             mois: facture.mois,
@@ -294,10 +326,11 @@ class DBService extends GetxService {
   }
 
   Future<int> deleteFactureJiro(String id) async {
-    return await (database.delete(database.facturesJiro)
-          ..where((t) => t.idFactureJiro.equals(id)))
-        .go();
+    return await (database.delete(
+      database.facturesJiro,
+    )..where((t) => t.idFactureJiro.equals(id))).go();
   }
 }
+
 // dart run drift_dev schema dump lib/persistance/database.dart db_schemas
 // dart run build_runner build --delete-conflicting-outputs

@@ -2,30 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Contrôleur pour gérer le thème de l'application (clair/sombre)
+/// Contrôleur d'apparence : thème clair/sombre, persisté d'une session
+/// à l'autre.
 class ThemeController extends GetxController {
   static const String _themeKey = 'isDarkMode';
 
-  final _isDarkMode = false.obs;
+  bool _isDarkMode = false;
 
   /// Retourne true si le mode sombre est actif
-  bool get isDarkMode => _isDarkMode.value;
+  bool get isDarkMode => _isDarkMode;
 
   /// Retourne le ThemeMode actuel pour GetMaterialApp
-  ThemeMode get themeMode =>
-      _isDarkMode.value ? ThemeMode.dark : ThemeMode.light;
+  ThemeMode get themeMode => _isDarkMode ? ThemeMode.dark : ThemeMode.light;
 
   @override
   void onInit() {
     super.onInit();
-    _loadTheme();
+    _load();
   }
 
-  /// Charge le thème depuis les préférences
-  Future<void> _loadTheme() async {
+  Future<void> _load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _isDarkMode.value = prefs.getBool(_themeKey) ?? false;
+      _isDarkMode = prefs.getBool(_themeKey) ?? false;
       Get.changeThemeMode(themeMode);
       update();
     } catch (e) {
@@ -34,34 +33,25 @@ class ThemeController extends GetxController {
   }
 
   /// Bascule entre le mode clair et sombre
-  Future<void> toggleTheme() async {
-    _isDarkMode.value = !_isDarkMode.value;
-    Get.changeThemeMode(themeMode);
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_themeKey, _isDarkMode.value);
-    } catch (e) {
-      debugPrint('Erreur sauvegarde thème: $e');
-    }
-
-    update();
-  }
+  Future<void> toggleTheme() => setDarkMode(!_isDarkMode);
 
   /// Définit explicitement le mode sombre
   Future<void> setDarkMode(bool isDark) async {
-    if (_isDarkMode.value == isDark) return;
-
-    _isDarkMode.value = isDark;
+    if (_isDarkMode == isDark) return;
+    _isDarkMode = isDark;
     Get.changeThemeMode(themeMode);
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_themeKey, isDark);
-    } catch (e) {
-      debugPrint('Erreur sauvegarde thème: $e');
-    }
-
     update();
+    await _save(_themeKey, (p) => p.setBool(_themeKey, isDark));
+  }
+
+  Future<void> _save(
+    String what,
+    Future<void> Function(SharedPreferences) write,
+  ) async {
+    try {
+      await write(await SharedPreferences.getInstance());
+    } catch (e) {
+      debugPrint('Erreur sauvegarde $what: $e');
+    }
   }
 }

@@ -1,11 +1,20 @@
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:caisse_dashboard/persistance/database.dart';
 import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:caisse_dashboard/persistance/database.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
+import 'package:get/get.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:encrypt/encrypt.dart' as encrypt;
-import 'package:drift/drift.dart';
+
+/// Bilan d'un import : ce qui est entré, ce qui était déjà là.
+/// La fusion se fait par identifiant — rien n'est jamais écrasé.
+class ImportResult {
+  const ImportResult({required this.added, required this.skipped});
+
+  final int added;
+  final int skipped;
+}
 
 class SyncService extends GetxService {
   final database = AppDatabase.instance;
@@ -15,78 +24,51 @@ class SyncService extends GetxService {
     '12345678901234567890123456789012',
   );
 
+  /// Nom du fichier SQLite, aligné sur `_openConnection()` de la base.
+  static const _dbFileName = 'caisse_dashboard.sqlite';
+
   Future<SyncService> init() async {
     return this;
   }
 
-  Future<bool> backupDatabaseToDesktop() async {
-    try {
-      final dbFolder = await getApplicationCacheDirectory();
-      final dbFile = File(p.join(dbFolder.path, 'caisse_database.sqlite'));
+  Future<File> _databaseFile() async {
+    final dbFolder = await getApplicationCacheDirectory();
+    return File(p.join(dbFolder.path, _dbFileName));
+  }
 
-      // Lire le contenu du fichier
-      final List<int> databaseContent = await dbFile.readAsBytes();
-
-      // Crypter le contenu
-      final iv = encrypt.IV.fromLength(16); // Vecteur d'initialisation
-      final encrypter = encrypt.Encrypter(encrypt.AES(_encryptionKey));
-
-      final encrypted = encrypter.encryptBytes(databaseContent, iv: iv);
-
-      // Créer le fichier de backup
-      final desktopPath =
-          "C:\\Users\\${Platform.environment['USERNAME']}\\Desktop";
-      final timestamp = DateTime.now()
-          .toString()
-          .replaceAll(RegExp(r'[:-]'), '_')
-          .split('.')
-          .first;
-      final backupFile = File('$desktopPath\\backup_caisse_$timestamp.enc');
-
-      // Sauvegarder le contenu crypté
-      await backupFile
-          .writeAsBytes(
-            [...iv.bytes, ...encrypted.bytes], // Combine IV et données cryptées
-          )
-          .then((_) {
-            Get.snackbar(
-              'Exportation effectuée',
-              'Exportation effectuée avec succès!',
-              snackPosition: SnackPosition.TOP,
-              margin: const EdgeInsets.symmetric(
-                horizontal: 10.0,
-                vertical: 70.0,
-              ),
-              backgroundColor: const Color.fromARGB(175, 0, 225, 0),
-              colorText: Colors.white,
-            );
-          })
-          .catchError((error) {
-            Get.snackbar(
-              "Erreur",
-              "Une erreur est survenue lors de l'exportation!",
-              snackPosition: SnackPosition.TOP,
-              margin: const EdgeInsets.symmetric(
-                horizontal: 10.0,
-                vertical: 70.0,
-              ),
-              backgroundColor: const Color.fromARGB(175, 255, 0, 0),
-              colorText: Colors.white,
-            );
-          });
-
-      return true;
-    } catch (e) {
-      Get.snackbar(
-        "Error backing up database",
-        '$e',
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 70.0),
-        backgroundColor: const Color.fromARGB(175, 255, 0, 0),
-        colorText: Colors.white,
-      );
-      return false;
+  /// Écrit une archive chiffrée `[IV | clé | données]` — le même format que
+  /// celui attendu par [decryptBackup], donc relisible par l'import.
+  /// Retourne le chemin du fichier produit.
+  Future<String> exportDatabase({String? targetDirectory}) async {
+    final dbFile = await _databaseFile();
+    if (!await dbFile.exists()) {
+      throw StateError('Base introuvable : ${dbFile.path}');
     }
+
+    final databaseContent = await dbFile.readAsBytes();
+
+    final iv = encrypt.IV.fromSecureRandom(16);
+    final encrypter = encrypt.Encrypter(encrypt.AES(_encryptionKey));
+    final encrypted = encrypter.encryptBytes(databaseContent, iv: iv);
+
+    final dir =
+        targetDirectory ??
+        Platform.environment['USERPROFILE'] ??
+        (await getApplicationDocumentsDirectory()).path;
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(RegExp(r'[:.-]'), '_')
+        .split('_')
+        .take(6)
+        .join('_');
+    final backupFile = File(p.join(dir, 'backup_caisse_$timestamp.enc'));
+
+    await backupFile.writeAsBytes([
+      ...iv.bytes,
+      ..._encryptionKey.bytes,
+      ...encrypted.bytes,
+    ]);
+    return backupFile.path;
   }
 
   // Fonction pour décrypter (à utiliser lors de la restauration)
@@ -106,19 +88,23 @@ class SyncService extends GetxService {
     return Uint8List.fromList(decryptedBytes);
   }
 
-  Future<bool> importAndMergeDatabase(String backupPath) async {
+  /// Fusionne une sauvegarde dans la base courante. Lève si le fichier n'est
+  /// pas déchiffrable ; dans ce cas la base locale reste intacte.
+  Future<ImportResult> importAndMergeDatabase(String backupPath) async {
+    // Décrypter le fichier de backup
+    final decryptedData = await decryptBackup(backupPath);
+
+    // Créer un fichier temporaire pour la base de données importée
+    final tempDir = await getTemporaryDirectory();
+    final tempDbFile = File(p.join(tempDir.path, 'temp_import.sqlite'));
+    await tempDbFile.writeAsBytes(decryptedData);
+
+    // Ouvrir la base de données temporaire
+    final importedDb = AppDatabase.fromFile(tempDbFile);
+    var added = 0;
+    var skipped = 0;
+
     try {
-      // Décrypter le fichier de backup
-      final decryptedData = await decryptBackup(backupPath);
-
-      // Créer un fichier temporaire pour la base de données importée
-      final tempDir = await getTemporaryDirectory();
-      final tempDbFile = File(p.join(tempDir.path, 'temp_import.sqlite'));
-      await tempDbFile.writeAsBytes(decryptedData);
-
-      // Ouvrir la base de données temporaire
-      final importedDb = AppDatabase.fromFile(tempDbFile);
-
       // Récupérer toutes les données de la base importée
       final importedOperations = await importedDb
           .select(importedDb.operations)
@@ -136,6 +122,19 @@ class SyncService extends GetxService {
 
       // Commencer la fusion des données dans une transaction
       await database.transaction(() async {
+        // Les factures d'abord : les opérations les référencent.
+        for (final fac in importedFactures) {
+          final exists = await (database.select(
+            database.factures,
+          )..where((t) => t.idFacture.equals(fac.idFacture))).getSingleOrNull();
+          if (exists == null) {
+            await database.into(database.factures).insert(fac);
+            added++;
+          } else {
+            skipped++;
+          }
+        }
+
         // Fusionner les opérations
         for (final op in importedOperations) {
           final exists =
@@ -144,6 +143,9 @@ class SyncService extends GetxService {
                   .getSingleOrNull();
           if (exists == null) {
             await database.into(database.operations).insert(op);
+            added++;
+          } else {
+            skipped++;
           }
         }
 
@@ -154,6 +156,9 @@ class SyncService extends GetxService {
           )..where((t) => t.idDepense.equals(dep.idDepense))).getSingleOrNull();
           if (exists == null) {
             await database.into(database.depenses).insert(dep);
+            added++;
+          } else {
+            skipped++;
           }
         }
 
@@ -165,6 +170,9 @@ class SyncService extends GetxService {
                   .getSingleOrNull();
           if (exists == null) {
             await database.into(database.prelevements).insert(prel);
+            added++;
+          } else {
+            skipped++;
           }
         }
 
@@ -175,44 +183,18 @@ class SyncService extends GetxService {
           )..where((t) => t.idReleve.equals(rel.idReleve))).getSingleOrNull();
           if (exists == null) {
             await database.into(database.releves).insert(rel);
-          }
-        }
-
-        // Fusionner les factures
-        for (final fac in importedFactures) {
-          final exists = await (database.select(
-            database.factures,
-          )..where((t) => t.idFacture.equals(fac.idFacture))).getSingleOrNull();
-          if (exists == null) {
-            await database.into(database.factures).insert(fac);
+            added++;
+          } else {
+            skipped++;
           }
         }
       });
-
+    } finally {
       // Fermer et supprimer la base de données temporaire
       await importedDb.close();
-      await tempDbFile.delete();
-
-      Get.snackbar(
-        'Importation réussie',
-        'Les données ont été fusionnées avec succès!',
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 70.0),
-        backgroundColor: const Color.fromARGB(175, 0, 225, 0),
-        colorText: Colors.white,
-      );
-
-      return true;
-    } catch (e) {
-      Get.snackbar(
-        'Erreur lors de l\'importation des données',
-        '$e',
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 70.0),
-        backgroundColor: const Color.fromARGB(175, 255, 0, 0),
-        colorText: Colors.white,
-      );
-      return false;
+      if (await tempDbFile.exists()) await tempDbFile.delete();
     }
+
+    return ImportResult(added: added, skipped: skipped);
   }
 }

@@ -19,7 +19,7 @@ String chiffreEnLettre(int i) {
     16: 'seize',
     17: 'dix-sept',
     18: 'dix-huit',
-    19: 'dix-neuf'
+    19: 'dix-neuf',
   };
 
   const dizaineSet = {
@@ -28,7 +28,7 @@ String chiffreEnLettre(int i) {
     4: 'quarante',
     5: 'cinquante',
     6: 'soixante',
-    8: 'quatre-vingt'
+    8: 'quatre-vingt',
   };
 
   List<int> tab = [];

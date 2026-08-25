@@ -77,21 +77,21 @@ class FactureJiroModel {
       );
 
   Map<String, dynamic> toJson() => {
-        'idFactureJiro': idFactureJiro,
-        'mois': mois,
-        'dateAncienIndex': dateAncienIndex,
-        'dateNouvelIndex': dateNouvelIndex,
-        'ancienIndexCompteur': ancienIndexCompteur,
-        'nouvelIndexCompteur': nouvelIndexCompteur,
-        'ancienIndexSousCompteur': ancienIndexSousCompteur,
-        'nouvelIndexSousCompteur': nouvelIndexSousCompteur,
-        'prixUnitaireKwh': prixUnitaireKwh,
-        'redevanceJirama': redevanceJirama,
-        'primeFixeJirama': primeFixeJirama,
-        'taxesRedevances': taxesRedevances,
-        'tva': tva,
-        'dateFacture': dateFacture,
-      };
+    'idFactureJiro': idFactureJiro,
+    'mois': mois,
+    'dateAncienIndex': dateAncienIndex,
+    'dateNouvelIndex': dateNouvelIndex,
+    'ancienIndexCompteur': ancienIndexCompteur,
+    'nouvelIndexCompteur': nouvelIndexCompteur,
+    'ancienIndexSousCompteur': ancienIndexSousCompteur,
+    'nouvelIndexSousCompteur': nouvelIndexSousCompteur,
+    'prixUnitaireKwh': prixUnitaireKwh,
+    'redevanceJirama': redevanceJirama,
+    'primeFixeJirama': primeFixeJirama,
+    'taxesRedevances': taxesRedevances,
+    'tva': tva,
+    'dateFacture': dateFacture,
+  };
 
   @override
   String toString() {

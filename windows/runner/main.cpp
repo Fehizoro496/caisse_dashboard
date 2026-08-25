@@ -26,7 +26,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
+  // Tableau de bord dense : sous ~1440x900 les cartes de tête passent sur
+  // deux rangs et le contenu se met à défiler.
+  Win32Window::Size size(1440, 900);
   if (!window.Create(L"caisse_dashboard", origin, size)) {
     return EXIT_FAILURE;
   }

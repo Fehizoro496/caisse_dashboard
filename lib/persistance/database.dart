@@ -74,7 +74,9 @@ class FacturesJiro extends Table {
   DateTimeColumn get dateFacture => dateTime()(); // Date de création
 }
 
-@DriftDatabase(tables: [Operations, Factures, Depenses, Prelevements, Releves, FacturesJiro])
+@DriftDatabase(
+  tables: [Operations, Factures, Depenses, Prelevements, Releves, FacturesJiro],
+)
 class AppDatabase extends _$AppDatabase {
   // Private constructor
   AppDatabase._() : super(_openConnection());

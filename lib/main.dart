@@ -1,14 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:caisse_dashboard/controller/main_controller.dart';
+import 'package:caisse_dashboard/controller/caisse_controller.dart';
 import 'package:caisse_dashboard/controller/theme_controller.dart';
-import 'package:caisse_dashboard/core/theme/app_theme.dart';
-import 'package:caisse_dashboard/core/routes/app_routes.dart';
+import 'package:caisse_dashboard/core/theme/app_tokens.dart';
 import 'package:caisse_dashboard/service/db_service.dart';
 import 'package:caisse_dashboard/service/jiro_invoice_service.dart';
 import 'package:caisse_dashboard/service/sync_service.dart';
-import 'package:caisse_dashboard/view/components/my_appbar.dart';
-import 'package:caisse_dashboard/view/main_page.dart';
+import 'package:caisse_dashboard/view/home_page.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:get/get.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
@@ -25,7 +24,7 @@ void main() async {
 
   // Initialize Controllers
   Get.put(ThemeController());
-  Get.put(MainController());
+  Get.put(CaisseController());
 
   runApp(const MyApp());
 }
@@ -41,21 +40,21 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           title: 'Caisse Dashboard',
 
-          // Thèmes light/dark avec palette violet/indigo
-          theme: AppTheme.lightTheme(),
-          darkTheme: AppTheme.darkTheme(),
+          // Un seul jeu de jetons pilote les deux thèmes.
+          theme: buildAppTheme(brightness: Brightness.light),
+          darkTheme: buildAppTheme(brightness: Brightness.dark),
           themeMode: themeController.themeMode,
 
-          // Routes
-          initialRoute: AppRoutes.home,
-          getPages: AppRoutes.pages,
+          locale: const Locale('fr', 'FR'),
+          fallbackLocale: const Locale('fr', 'FR'),
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('fr', 'FR')],
 
-          // Home page with AppBar
-          home: Scaffold(
-            extendBodyBehindAppBar: true,
-            appBar: MyAppBar(),
-            body: MainPage(),
-          ),
+          home: const HomePage(),
         );
       },
     );

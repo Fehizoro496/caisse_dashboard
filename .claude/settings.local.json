@@ -12,7 +12,9 @@
       "Bash(flutter --version 2>/dev/null && dart --version 2>/dev/null)",
       "Bash(cd D:/workspace/caisse_dashboard && dart pub get 2>&1)",
       "Bash(powershell:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(flutter --version)",
+      "Bash(git rm *)"
     ]
   }
 }

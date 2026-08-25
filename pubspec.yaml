@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   cupertino_icons: ^1.0.8
   get: ^4.6.6
@@ -17,7 +19,6 @@ dependencies:
   # PDF & fichiers
   pdf: ^3.10.8
   path_provider: ^2.1.4
-  open_document: ^1.0.7
   file_picker: ^10.3.8   # OK avec Flutter 3.38
 
   # Base de données
@@ -29,15 +30,11 @@ dependencies:
   path: ^1.9.0
 
   # Utilitaires
-  to_csv: ^3.0.2
   encrypt: ^5.0.3
   uuid: ^4.5.1
   shared_preferences: ^2.2.2
-  intl: ^0.18.1
+  intl: ^0.20.2   # 🔒 version imposée par flutter_localizations
   collection: ^1.18.0
-
-  # Charts
-  syncfusion_flutter_charts: ^32.1.23
 
   # Windows (STABLE Flutter 3.38)
   win32: 5.15.0   # 🔒 pin exact pour éviter les breaks natifs
