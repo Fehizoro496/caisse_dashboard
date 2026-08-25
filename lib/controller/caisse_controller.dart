@@ -12,6 +12,7 @@ import 'package:caisse_dashboard/view/screens/dashboard_screen.dart';
 import 'package:caisse_dashboard/view/screens/jiro_screen.dart';
 import 'package:caisse_dashboard/view/screens/ledger_screen.dart';
 import 'package:caisse_dashboard/view/widgets/app_shell.dart';
+import 'package:caisse_dashboard/view/widgets/app_toast.dart';
 import 'package:caisse_dashboard/view/widgets/stat_cards.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -654,16 +655,10 @@ class CaisseController extends GetxController {
   }
 
   void _toast(String title, String message, {bool ok = true}) {
-    Get.snackbar(
-      title,
-      message,
-      snackPosition: SnackPosition.TOP,
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 70),
-      backgroundColor: ok
-          ? const Color.fromARGB(175, 0, 225, 0)
-          : const Color.fromARGB(175, 255, 0, 0),
-      colorText: Colors.white,
-      duration: const Duration(seconds: 4),
-    );
+    if (ok) {
+      AppToast.success(title, message: message);
+    } else {
+      AppToast.error(title, message: message);
+    }
   }
 }

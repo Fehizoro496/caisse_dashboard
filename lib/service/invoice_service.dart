@@ -1,5 +1,6 @@
 import 'package:caisse_dashboard/utils/chiffre_en_lettre.dart';
 import 'package:caisse_dashboard/utils/format_number.dart';
+import 'package:caisse_dashboard/view/widgets/app_toast.dart';
 // ignore: depend_on_referenced_packages
 import 'package:collection/collection.dart';
 import 'package:get/get.dart';
@@ -259,13 +260,9 @@ class InvoiceService extends GetxService {
     }
     final file = File(filePath);
     await file.writeAsBytes(await pdf.save()).then((value) {
-      Get.snackbar(
-        'PDF Generated',
-        'Invoice PDF has been generated successfully!',
-        snackPosition: SnackPosition.TOP,
-        margin: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 70.0),
-        backgroundColor: const Color.fromARGB(175, 0, 225, 0),
-        colorText: Colors.white,
+      AppToast.success(
+        'PDF généré',
+        message: 'La facture a été enregistrée sur le Bureau',
       );
     });
     // print("Chemin vers la facture => ${file.path}");

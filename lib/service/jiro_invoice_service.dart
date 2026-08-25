@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:caisse_dashboard/model/facture_jiro_model.dart';
 import 'package:caisse_dashboard/persistance/database.dart';
 import 'package:caisse_dashboard/utils/format_number.dart';
-import 'package:flutter/material.dart';
+import 'package:caisse_dashboard/view/widgets/app_toast.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -203,13 +203,9 @@ class JiroInvoiceService extends GetxService {
     await file.parent.create(recursive: true);
     await file.writeAsBytes(await pdf.save());
 
-    Get.snackbar(
-      'PDF Généré',
-      'Le fichier a été enregistré sur le Bureau',
-      snackPosition: SnackPosition.TOP,
-      margin: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 70.0),
-      backgroundColor: const Color.fromARGB(175, 0, 225, 0),
-      colorText: Colors.white,
+    AppToast.success(
+      'PDF généré',
+      message: 'Le fichier a été enregistré sur le Bureau',
     );
 
     return true;
