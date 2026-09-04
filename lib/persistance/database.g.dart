@@ -2555,6 +2555,451 @@ class FacturesJiroCompanion extends UpdateCompanion<FacturesJiroData> {
   }
 }
 
+class $ChargesTable extends Charges with TableInfo<$ChargesTable, Charge> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ChargesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idChargeMeta = const VerificationMeta(
+    'idCharge',
+  );
+  @override
+  late final GeneratedColumn<String> idCharge = GeneratedColumn<String>(
+    'id_charge',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _libelleMeta = const VerificationMeta(
+    'libelle',
+  );
+  @override
+  late final GeneratedColumn<String> libelle = GeneratedColumn<String>(
+    'libelle',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _montantMeta = const VerificationMeta(
+    'montant',
+  );
+  @override
+  late final GeneratedColumn<int> montant = GeneratedColumn<int>(
+    'montant',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _moisMeta = const VerificationMeta('mois');
+  @override
+  late final GeneratedColumn<DateTime> mois = GeneratedColumn<DateTime>(
+    'mois',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dateEnregistrementMeta =
+      const VerificationMeta('dateEnregistrement');
+  @override
+  late final GeneratedColumn<DateTime> dateEnregistrement =
+      GeneratedColumn<DateTime>(
+        'date_enregistrement',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _categorieMeta = const VerificationMeta(
+    'categorie',
+  );
+  @override
+  late final GeneratedColumn<String> categorie = GeneratedColumn<String>(
+    'categorie',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    idCharge,
+    libelle,
+    montant,
+    mois,
+    dateEnregistrement,
+    categorie,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'charges';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Charge> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id_charge')) {
+      context.handle(
+        _idChargeMeta,
+        idCharge.isAcceptableOrUnknown(data['id_charge']!, _idChargeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_idChargeMeta);
+    }
+    if (data.containsKey('libelle')) {
+      context.handle(
+        _libelleMeta,
+        libelle.isAcceptableOrUnknown(data['libelle']!, _libelleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_libelleMeta);
+    }
+    if (data.containsKey('montant')) {
+      context.handle(
+        _montantMeta,
+        montant.isAcceptableOrUnknown(data['montant']!, _montantMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_montantMeta);
+    }
+    if (data.containsKey('mois')) {
+      context.handle(
+        _moisMeta,
+        mois.isAcceptableOrUnknown(data['mois']!, _moisMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_moisMeta);
+    }
+    if (data.containsKey('date_enregistrement')) {
+      context.handle(
+        _dateEnregistrementMeta,
+        dateEnregistrement.isAcceptableOrUnknown(
+          data['date_enregistrement']!,
+          _dateEnregistrementMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_dateEnregistrementMeta);
+    }
+    if (data.containsKey('categorie')) {
+      context.handle(
+        _categorieMeta,
+        categorie.isAcceptableOrUnknown(data['categorie']!, _categorieMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => const {};
+  @override
+  Charge map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Charge(
+      idCharge: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id_charge'],
+      )!,
+      libelle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}libelle'],
+      )!,
+      montant: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}montant'],
+      )!,
+      mois: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}mois'],
+      )!,
+      dateEnregistrement: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}date_enregistrement'],
+      )!,
+      categorie: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}categorie'],
+      ),
+    );
+  }
+
+  @override
+  $ChargesTable createAlias(String alias) {
+    return $ChargesTable(attachedDatabase, alias);
+  }
+}
+
+class Charge extends DataClass implements Insertable<Charge> {
+  final String idCharge;
+  final String libelle;
+  final int montant;
+
+  /// Premier jour du mois d'imputation, à 00:00 — voir `normalizeMois`.
+  /// C'est lui, et lui seul, qui décide du cadrage où la charge est comptée.
+  final DateTime mois;
+
+  /// Jour de la saisie, à 00:00 — voir `normalizeJour`. Distinct de [mois] à
+  /// dessein : le loyer d'août réglé le 3 septembre s'impute à août tout en
+  /// s'enregistrant en septembre. Sans effet sur les totaux — c'est une trace,
+  /// pas une clé. Pas d'heure : une charge se règle dans une journée, pas à
+  /// une minute près.
+  ///
+  /// Sans `withDefault` volontairement : un défaut SQL ne serait pas le même
+  /// selon que la table sort d'un `CREATE` ou d'un `ALTER` (voir la migration
+  /// v10 → v11), et drift s'en remettrait à lui sur les insertions muettes.
+  /// Valeur toujours fournie côté Dart, donc jamais de divergence.
+  final DateTime dateEnregistrement;
+
+  /// Catégorie choisie à la saisie. Nullable : les charges antérieures à cette
+  /// colonne n'en portent pas, et retombent alors sur la déduction par mots-clés
+  /// — voir `CategoryRules.resolve`. C'est la seule table dont la catégorie est
+  /// stockée ; celle d'une dépense reste dérivée de son libellé.
+  final String? categorie;
+  const Charge({
+    required this.idCharge,
+    required this.libelle,
+    required this.montant,
+    required this.mois,
+    required this.dateEnregistrement,
+    this.categorie,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id_charge'] = Variable<String>(idCharge);
+    map['libelle'] = Variable<String>(libelle);
+    map['montant'] = Variable<int>(montant);
+    map['mois'] = Variable<DateTime>(mois);
+    map['date_enregistrement'] = Variable<DateTime>(dateEnregistrement);
+    if (!nullToAbsent || categorie != null) {
+      map['categorie'] = Variable<String>(categorie);
+    }
+    return map;
+  }
+
+  ChargesCompanion toCompanion(bool nullToAbsent) {
+    return ChargesCompanion(
+      idCharge: Value(idCharge),
+      libelle: Value(libelle),
+      montant: Value(montant),
+      mois: Value(mois),
+      dateEnregistrement: Value(dateEnregistrement),
+      categorie: categorie == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categorie),
+    );
+  }
+
+  factory Charge.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Charge(
+      idCharge: serializer.fromJson<String>(json['idCharge']),
+      libelle: serializer.fromJson<String>(json['libelle']),
+      montant: serializer.fromJson<int>(json['montant']),
+      mois: serializer.fromJson<DateTime>(json['mois']),
+      dateEnregistrement: serializer.fromJson<DateTime>(
+        json['dateEnregistrement'],
+      ),
+      categorie: serializer.fromJson<String?>(json['categorie']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'idCharge': serializer.toJson<String>(idCharge),
+      'libelle': serializer.toJson<String>(libelle),
+      'montant': serializer.toJson<int>(montant),
+      'mois': serializer.toJson<DateTime>(mois),
+      'dateEnregistrement': serializer.toJson<DateTime>(dateEnregistrement),
+      'categorie': serializer.toJson<String?>(categorie),
+    };
+  }
+
+  Charge copyWith({
+    String? idCharge,
+    String? libelle,
+    int? montant,
+    DateTime? mois,
+    DateTime? dateEnregistrement,
+    Value<String?> categorie = const Value.absent(),
+  }) => Charge(
+    idCharge: idCharge ?? this.idCharge,
+    libelle: libelle ?? this.libelle,
+    montant: montant ?? this.montant,
+    mois: mois ?? this.mois,
+    dateEnregistrement: dateEnregistrement ?? this.dateEnregistrement,
+    categorie: categorie.present ? categorie.value : this.categorie,
+  );
+  Charge copyWithCompanion(ChargesCompanion data) {
+    return Charge(
+      idCharge: data.idCharge.present ? data.idCharge.value : this.idCharge,
+      libelle: data.libelle.present ? data.libelle.value : this.libelle,
+      montant: data.montant.present ? data.montant.value : this.montant,
+      mois: data.mois.present ? data.mois.value : this.mois,
+      dateEnregistrement: data.dateEnregistrement.present
+          ? data.dateEnregistrement.value
+          : this.dateEnregistrement,
+      categorie: data.categorie.present ? data.categorie.value : this.categorie,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Charge(')
+          ..write('idCharge: $idCharge, ')
+          ..write('libelle: $libelle, ')
+          ..write('montant: $montant, ')
+          ..write('mois: $mois, ')
+          ..write('dateEnregistrement: $dateEnregistrement, ')
+          ..write('categorie: $categorie')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    idCharge,
+    libelle,
+    montant,
+    mois,
+    dateEnregistrement,
+    categorie,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Charge &&
+          other.idCharge == this.idCharge &&
+          other.libelle == this.libelle &&
+          other.montant == this.montant &&
+          other.mois == this.mois &&
+          other.dateEnregistrement == this.dateEnregistrement &&
+          other.categorie == this.categorie);
+}
+
+class ChargesCompanion extends UpdateCompanion<Charge> {
+  final Value<String> idCharge;
+  final Value<String> libelle;
+  final Value<int> montant;
+  final Value<DateTime> mois;
+  final Value<DateTime> dateEnregistrement;
+  final Value<String?> categorie;
+  final Value<int> rowid;
+  const ChargesCompanion({
+    this.idCharge = const Value.absent(),
+    this.libelle = const Value.absent(),
+    this.montant = const Value.absent(),
+    this.mois = const Value.absent(),
+    this.dateEnregistrement = const Value.absent(),
+    this.categorie = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ChargesCompanion.insert({
+    required String idCharge,
+    required String libelle,
+    required int montant,
+    required DateTime mois,
+    required DateTime dateEnregistrement,
+    this.categorie = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : idCharge = Value(idCharge),
+       libelle = Value(libelle),
+       montant = Value(montant),
+       mois = Value(mois),
+       dateEnregistrement = Value(dateEnregistrement);
+  static Insertable<Charge> custom({
+    Expression<String>? idCharge,
+    Expression<String>? libelle,
+    Expression<int>? montant,
+    Expression<DateTime>? mois,
+    Expression<DateTime>? dateEnregistrement,
+    Expression<String>? categorie,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (idCharge != null) 'id_charge': idCharge,
+      if (libelle != null) 'libelle': libelle,
+      if (montant != null) 'montant': montant,
+      if (mois != null) 'mois': mois,
+      if (dateEnregistrement != null) 'date_enregistrement': dateEnregistrement,
+      if (categorie != null) 'categorie': categorie,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ChargesCompanion copyWith({
+    Value<String>? idCharge,
+    Value<String>? libelle,
+    Value<int>? montant,
+    Value<DateTime>? mois,
+    Value<DateTime>? dateEnregistrement,
+    Value<String?>? categorie,
+    Value<int>? rowid,
+  }) {
+    return ChargesCompanion(
+      idCharge: idCharge ?? this.idCharge,
+      libelle: libelle ?? this.libelle,
+      montant: montant ?? this.montant,
+      mois: mois ?? this.mois,
+      dateEnregistrement: dateEnregistrement ?? this.dateEnregistrement,
+      categorie: categorie ?? this.categorie,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (idCharge.present) {
+      map['id_charge'] = Variable<String>(idCharge.value);
+    }
+    if (libelle.present) {
+      map['libelle'] = Variable<String>(libelle.value);
+    }
+    if (montant.present) {
+      map['montant'] = Variable<int>(montant.value);
+    }
+    if (mois.present) {
+      map['mois'] = Variable<DateTime>(mois.value);
+    }
+    if (dateEnregistrement.present) {
+      map['date_enregistrement'] = Variable<DateTime>(dateEnregistrement.value);
+    }
+    if (categorie.present) {
+      map['categorie'] = Variable<String>(categorie.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChargesCompanion(')
+          ..write('idCharge: $idCharge, ')
+          ..write('libelle: $libelle, ')
+          ..write('montant: $montant, ')
+          ..write('mois: $mois, ')
+          ..write('dateEnregistrement: $dateEnregistrement, ')
+          ..write('categorie: $categorie, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2564,6 +3009,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PrelevementsTable prelevements = $PrelevementsTable(this);
   late final $RelevesTable releves = $RelevesTable(this);
   late final $FacturesJiroTable facturesJiro = $FacturesJiroTable(this);
+  late final $ChargesTable charges = $ChargesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2575,6 +3021,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     prelevements,
     releves,
     facturesJiro,
+    charges,
   ];
 }
 
@@ -4111,6 +4558,221 @@ typedef $$FacturesJiroTableProcessedTableManager =
       FacturesJiroData,
       PrefetchHooks Function()
     >;
+typedef $$ChargesTableCreateCompanionBuilder =
+    ChargesCompanion Function({
+      required String idCharge,
+      required String libelle,
+      required int montant,
+      required DateTime mois,
+      required DateTime dateEnregistrement,
+      Value<String?> categorie,
+      Value<int> rowid,
+    });
+typedef $$ChargesTableUpdateCompanionBuilder =
+    ChargesCompanion Function({
+      Value<String> idCharge,
+      Value<String> libelle,
+      Value<int> montant,
+      Value<DateTime> mois,
+      Value<DateTime> dateEnregistrement,
+      Value<String?> categorie,
+      Value<int> rowid,
+    });
+
+class $$ChargesTableFilterComposer
+    extends Composer<_$AppDatabase, $ChargesTable> {
+  $$ChargesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get idCharge => $composableBuilder(
+    column: $table.idCharge,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get libelle => $composableBuilder(
+    column: $table.libelle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get montant => $composableBuilder(
+    column: $table.montant,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get mois => $composableBuilder(
+    column: $table.mois,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get dateEnregistrement => $composableBuilder(
+    column: $table.dateEnregistrement,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categorie => $composableBuilder(
+    column: $table.categorie,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ChargesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ChargesTable> {
+  $$ChargesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get idCharge => $composableBuilder(
+    column: $table.idCharge,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get libelle => $composableBuilder(
+    column: $table.libelle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get montant => $composableBuilder(
+    column: $table.montant,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get mois => $composableBuilder(
+    column: $table.mois,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get dateEnregistrement => $composableBuilder(
+    column: $table.dateEnregistrement,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get categorie => $composableBuilder(
+    column: $table.categorie,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ChargesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ChargesTable> {
+  $$ChargesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get idCharge =>
+      $composableBuilder(column: $table.idCharge, builder: (column) => column);
+
+  GeneratedColumn<String> get libelle =>
+      $composableBuilder(column: $table.libelle, builder: (column) => column);
+
+  GeneratedColumn<int> get montant =>
+      $composableBuilder(column: $table.montant, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get mois =>
+      $composableBuilder(column: $table.mois, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get dateEnregistrement => $composableBuilder(
+    column: $table.dateEnregistrement,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get categorie =>
+      $composableBuilder(column: $table.categorie, builder: (column) => column);
+}
+
+class $$ChargesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ChargesTable,
+          Charge,
+          $$ChargesTableFilterComposer,
+          $$ChargesTableOrderingComposer,
+          $$ChargesTableAnnotationComposer,
+          $$ChargesTableCreateCompanionBuilder,
+          $$ChargesTableUpdateCompanionBuilder,
+          (Charge, BaseReferences<_$AppDatabase, $ChargesTable, Charge>),
+          Charge,
+          PrefetchHooks Function()
+        > {
+  $$ChargesTableTableManager(_$AppDatabase db, $ChargesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ChargesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ChargesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ChargesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> idCharge = const Value.absent(),
+                Value<String> libelle = const Value.absent(),
+                Value<int> montant = const Value.absent(),
+                Value<DateTime> mois = const Value.absent(),
+                Value<DateTime> dateEnregistrement = const Value.absent(),
+                Value<String?> categorie = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChargesCompanion(
+                idCharge: idCharge,
+                libelle: libelle,
+                montant: montant,
+                mois: mois,
+                dateEnregistrement: dateEnregistrement,
+                categorie: categorie,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String idCharge,
+                required String libelle,
+                required int montant,
+                required DateTime mois,
+                required DateTime dateEnregistrement,
+                Value<String?> categorie = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChargesCompanion.insert(
+                idCharge: idCharge,
+                libelle: libelle,
+                montant: montant,
+                mois: mois,
+                dateEnregistrement: dateEnregistrement,
+                categorie: categorie,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ChargesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ChargesTable,
+      Charge,
+      $$ChargesTableFilterComposer,
+      $$ChargesTableOrderingComposer,
+      $$ChargesTableAnnotationComposer,
+      $$ChargesTableCreateCompanionBuilder,
+      $$ChargesTableUpdateCompanionBuilder,
+      (Charge, BaseReferences<_$AppDatabase, $ChargesTable, Charge>),
+      Charge,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4127,4 +4789,6 @@ class $AppDatabaseManager {
       $$RelevesTableTableManager(_db, _db.releves);
   $$FacturesJiroTableTableManager get facturesJiro =>
       $$FacturesJiroTableTableManager(_db, _db.facturesJiro);
+  $$ChargesTableTableManager get charges =>
+      $$ChargesTableTableManager(_db, _db.charges);
 }

@@ -1,9 +1,11 @@
 import 'package:caisse_dashboard/core/models.dart';
 import 'package:caisse_dashboard/core/theme/app_tokens.dart';
 import 'package:caisse_dashboard/view/screens/backup_screen.dart';
+import 'package:caisse_dashboard/view/screens/charges_screen.dart';
 import 'package:caisse_dashboard/view/screens/jiro_screen.dart';
 import 'package:caisse_dashboard/view/screens/ledger_screen.dart';
 import 'package:caisse_dashboard/view/screens/releves_screen.dart';
+import 'package:caisse_dashboard/view/widgets/record_editor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -69,6 +71,53 @@ void main() {
       sort: LedgerSort.date,
       onSortChanged: (_) {},
       items: const [],
+    ),
+    'charges mensuelles': (context) => ChargesScreen(
+      charges: [
+        for (final (l, m, jour) in const [
+          ('Loyer du local', 350000, 3),
+          ('Facture JIRAMA', 95000, 12),
+          ('Fournitures de bureau', 35000, 20),
+          // Réglée en septembre, imputée à août : la ligne au décalage
+          // signalé, celle qui porte le rendu le plus chargé.
+          ('Internet fibre', 120000, 34),
+        ])
+          ChargeMensuelle(
+            id: l,
+            libelle: l,
+            montant: m,
+            mois: DateTime(2026, 8),
+            dateEnregistrement: DateTime(2026, 8, jour),
+          ),
+      ],
+      mois: DateTime(2026, 8),
+      onMoisChanged: (_) {},
+      onAdd: () {},
+      onEdit: (_) {},
+      onDelete: (_) {},
+      reportables: const [],
+      onReport: () {},
+    ),
+    // Mois vide : c'est l'état qui propose le report, avec son bloc de texte
+    // le plus long — donc le plus exposé au débordement.
+    'charges mensuelles (mois vide)': (context) => ChargesScreen(
+      charges: const [],
+      mois: DateTime(2026, 9),
+      onMoisChanged: (_) {},
+      onAdd: () {},
+      onEdit: (_) {},
+      onDelete: (_) {},
+      reportables: [
+        ChargeMensuelle(
+          id: 'r',
+          libelle: 'Loyer du local',
+          montant: 350000,
+          mois: DateTime(2026, 8),
+          dateEnregistrement: DateTime(2026, 8, 3),
+        ),
+      ],
+      onReport: () {},
+      incluses: false,
     ),
     'relevés': (context) => RelevesScreen(releves: releves),
     'partage JIRO': (context) =>
@@ -142,6 +191,110 @@ void main() {
     await mount(tester, screens['partage JIRO']!, const Size(1280, 720), 1.3);
     await tester.tap(find.text('Nouveau partage'));
     await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  /// Ouvre le formulaire de charge. Le bouton « Ajouter » de l'écran ne suffit
+  /// pas : c'est le contrôleur qui appelle l'éditeur, et le fixture n'en a pas.
+  Future<void> openChargeEditor(
+    WidgetTester tester,
+    Size size,
+    double textScale,
+  ) async {
+    await mount(
+      tester,
+      (context) => TextButton(
+        onPressed: () => showChargeEditor(context, mois: DateTime(2026, 8)),
+        child: const Text('ouvrir'),
+      ),
+      size,
+      textScale,
+    );
+    await tester.tap(find.text('ouvrir'));
+    await tester.pumpAndSettle();
+  }
+
+  // Le formulaire de charge est le dialogue le plus haut du produit, et sa
+  // liste de catégories déployée le cas le plus exigeant en hauteur.
+  for (final (size, scale) in cases) {
+    testWidgets(
+      'formulaire de charge · ${size.width.toInt()}x${size.height.toInt()} · '
+      'texte ×$scale',
+      (tester) async {
+        await openChargeEditor(tester, size, scale);
+        expect(tester.takeException(), isNull);
+
+        // Liste déployée : les neuf catégories sont proposées, pas seulement
+        // celle qui est déduite du libellé.
+        await tester.tap(find.byType(DropdownButton<String>));
+        await tester.pumpAndSettle();
+        for (final c in CategoryRules.chargeCategories) {
+          expect(find.text(c), findsWidgets, reason: '$c absente du choix');
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('une catégorie inconnue de CategoryRules garde son entrée', (
+    tester,
+  ) async {
+    // Le cas d'une charge enregistrée sous une catégorie retirée depuis :
+    // sans son entrée, DropdownButton casserait sur une assertion.
+    await mount(
+      tester,
+      (context) => TextButton(
+        onPressed: () => showChargeEditor(
+          context,
+          libelle: 'Ancienne ligne',
+          montant: 50000,
+          mois: DateTime(2026, 8),
+          dateEnregistrement: DateTime(2026, 8, 3),
+          categorie: 'Catégorie disparue',
+        ),
+        child: const Text('ouvrir'),
+      ),
+      const Size(1440, 900),
+      1.0,
+    );
+    await tester.tap(find.text('ouvrir'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Catégorie disparue'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('la catégorie proposée suit le libellé, puis se fige', (
+    tester,
+  ) async {
+    await openChargeEditor(tester, const Size(1440, 900), 1.0);
+
+    // L'intitulé du champ passe en capitales : on cherche le mot qui
+    // distingue les deux états, pas la phrase entière.
+    final proposee = find.textContaining('PROPOSÉE');
+    final choisie = find.textContaining('CHOISIE');
+
+    // Tant que rien n'est choisi, la frappe pilote la catégorie.
+    await tester.enterText(find.byType(TextField).first, 'Loyer du local');
+    await tester.pump();
+    expect(proposee, findsOneWidget);
+    expect(choisie, findsNothing);
+
+    // Un choix dans la liste fige la catégorie…
+    await tester.tap(find.byType(DropdownButton<String>));
+    await tester.pumpAndSettle();
+    // L'entrée sélectionnée apparaît deux fois quand le menu est ouvert :
+    // dans le champ et dans la liste. C'est celle de la liste qu'on clique.
+    await tester.tap(find.text('Maintenance').last);
+    await tester.pumpAndSettle();
+    expect(choisie, findsOneWidget);
+    expect(proposee, findsNothing);
+
+    // …que le libellé ne rattrape plus : « Ramette A4 » déduirait
+    // « Fournitures ».
+    await tester.enterText(find.byType(TextField).first, 'Ramette A4');
+    await tester.pump();
+    expect(choisie, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

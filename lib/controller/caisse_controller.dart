@@ -36,6 +36,7 @@ class CaisseController extends GetxController {
   final JiroInvoiceService _jiro;
 
   static const _importsKey = 'importLogs';
+  static const _chargesKey = 'chargesIncluses';
 
   // ── État de chargement
   bool loading = true;
@@ -48,6 +49,7 @@ class CaisseController extends GetxController {
   List<Operation> _operations = const [];
   List<Depense> _depenses = const [];
   List<Prelevement> _prelevements = const [];
+  List<Charge> _charges = const [];
   List<FacturesJiroData> _facturesJiro = const [];
   List<ReleveElectricite> releves = const [];
   List<ImportLog> imports = const [];
@@ -56,6 +58,10 @@ class CaisseController extends GetxController {
   AppSection section = AppSection.dashboard;
   Period period = Period.day;
 
+  /// Les charges pèsent-elles sur le solde du mois ? Bascule offerte au
+  /// cadrage Mois, et persistée : c'est une façon de lire, pas un état d'écran.
+  bool chargesIncluses = true;
+
   /// Date courante — initialisée sur le dernier enregistrement en base,
   /// jamais sur aujourd'hui.
   DateTime date = DateTime.now();
@@ -63,6 +69,10 @@ class CaisseController extends GetxController {
 
   /// Mois sélectionné dans l'écran Prélèvements.
   DateTime mois = DateTime(DateTime.now().year, DateTime.now().month);
+
+  /// Mois sélectionné dans l'écran Charges. Distinct de [mois] : on consulte
+  /// souvent les charges d'un mois en corrigeant les prélèvements d'un autre.
+  DateTime moisCharges = DateTime(DateTime.now().year, DateTime.now().month);
 
   String qOperations = '';
   String qDepenses = '';
@@ -88,6 +98,7 @@ class CaisseController extends GetxController {
         _db.getAllPrelevements(),
         _db.getAllReleves(),
         _db.getAllFacturesJiro(),
+        _db.getAllCharges(),
       ]);
       _operations = results[0] as List<Operation>;
       _depenses = results[1] as List<Depense>;
@@ -102,12 +113,15 @@ class CaisseController extends GetxController {
           ),
       ];
       _facturesJiro = results[4] as List<FacturesJiroData>;
+      _charges = results[5] as List<Charge>;
       imports = await _loadImportLogs();
+      chargesIncluses = await _loadChargesPreference();
 
       lastRecordDate = _computeLastRecordDate();
       if (!keepDate) {
         date = lastRecordDate;
         mois = DateTime(date.year, date.month);
+        moisCharges = DateTime(date.year, date.month);
       }
       error = null;
     } catch (e) {
@@ -118,6 +132,8 @@ class CaisseController extends GetxController {
     }
   }
 
+  /// Les charges sont volontairement absentes : saisir celle du mois prochain
+  /// projetterait le tableau de bord en avant, sur une période sans caisse.
   DateTime _computeLastRecordDate() {
     final dates = <DateTime>[
       ..._operations.map((o) => o.dateOperation),
@@ -133,6 +149,9 @@ class CaisseController extends GetxController {
   void openSection(AppSection s) {
     section = s;
     if (s == AppSection.drawings) mois = DateTime(date.year, date.month);
+    if (s == AppSection.charges) {
+      moisCharges = DateTime(date.year, date.month);
+    }
     update();
   }
 
@@ -149,6 +168,33 @@ class CaisseController extends GetxController {
   void setMois(DateTime m) {
     mois = m;
     update();
+  }
+
+  void setMoisCharges(DateTime m) {
+    moisCharges = m;
+    update();
+  }
+
+  /// Bascule l'imputation des charges au solde du mois. La préférence survit
+  /// à la fermeture : c'est une façon de lire les chiffres, pas un état d'écran.
+  Future<void> setChargesIncluses(bool v) async {
+    chargesIncluses = v;
+    update();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_chargesKey, v);
+    } catch (_) {
+      // Le confort d'une préférence retenue ne vaut pas un écran en erreur.
+    }
+  }
+
+  Future<bool> _loadChargesPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_chargesKey) ?? true;
+    } catch (_) {
+      return true;
+    }
   }
 
   void setQuery(AppSection s, String q) {
@@ -190,11 +236,13 @@ class CaisseController extends GetxController {
       _operations.length +
       _depenses.length +
       _prelevements.length +
+      _charges.length +
       releves.length;
 
   Map<AppSection, int> get counts => {
     AppSection.operations: _operations.length,
     AppSection.expenses: _depenses.length,
+    AppSection.charges: _charges.length,
     AppSection.drawings: _prelevements.length,
     AppSection.meterReadings: releves.length,
     AppSection.jiroSharing: _facturesJiro.length,
@@ -250,7 +298,23 @@ class CaisseController extends GetxController {
   static bool _within(DateTime d, DateTime start, DateTime end) =>
       !d.isBefore(start) && d.isBefore(end);
 
-  PeriodTotals _totals(DateTime start, DateTime end) {
+  /// Charges imputables à la fenêtre, triées du plus lourd au plus léger.
+  ///
+  /// La garde sur le cadrage n'est pas une commodité : datée du 1er du mois,
+  /// une charge tomberait sinon dans la fenêtre du *jour* « 1er » et dans la
+  /// *semaine* qui le contient. Un loyer n'appartient à aucun jour — seul le
+  /// cadrage Mois peut le porter.
+  ///
+  /// Le résultat ignore [chargesIncluses] : la bascule décide de l'imputation
+  /// au solde, pas de l'existence des charges, que la carte affiche même
+  /// quand elles sont exclues.
+  List<Charge> _chargesIn(DateTime start, DateTime end, Period p) {
+    if (p != Period.month) return const [];
+    return _charges.where((c) => _within(c.mois, start, end)).toList()
+      ..sort((a, b) => b.montant.compareTo(a.montant));
+  }
+
+  PeriodTotals _totals(DateTime start, DateTime end, Period p) {
     var entrant = 0, sortant = 0, prelevement = 0;
     var nbOps = 0, nbDep = 0, nbPrel = 0;
     for (final o in _operations) {
@@ -271,6 +335,7 @@ class CaisseController extends GetxController {
         nbPrel++;
       }
     }
+    final chs = _chargesIn(start, end, p);
     return PeriodTotals(
       entrant: entrant,
       sortant: sortant,
@@ -278,6 +343,10 @@ class CaisseController extends GetxController {
       nbOperations: nbOps,
       nbDepenses: nbDep,
       nbPrelevements: nbPrel,
+      // Exclues, les charges sortent du solde mais restent lisibles sur la
+      // carte, que `DashboardData.chargesDuMois` alimente séparément.
+      charges: chargesIncluses ? chs.fold<int>(0, (s, c) => s + c.montant) : 0,
+      nbCharges: chargesIncluses ? chs.length : 0,
     );
   }
 
@@ -295,9 +364,20 @@ class CaisseController extends GetxController {
         _depenses.where((d) => _within(d.dateDepense, start, end)).toList()
           ..sort((a, b) => a.dateDepense.compareTo(b.dateDepense));
 
+    final charges = _chargesIn(start, end, period);
+
     return DashboardData(
-      totals: _totals(start, end),
-      previousTotals: _totals(pStart, pEnd),
+      totals: _totals(start, end, period),
+      previousTotals: _totals(pStart, pEnd, period),
+      chargesDuMois: [
+        for (final c in charges)
+          DepenseRow(
+            libelle: c.libelle,
+            categorie: CategoryRules.resolveCharge(c.categorie, c.libelle),
+            montant: c.montant,
+          ),
+      ],
+      chargesIncluses: chargesIncluses,
       operations: period == Period.day
           ? [
               for (final o in ops)
@@ -319,7 +399,7 @@ class CaisseController extends GetxController {
           ),
       ],
       trend: _trend(),
-      repartition: _repartition(deps),
+      repartition: _repartition(deps, charges),
     );
   }
 
@@ -363,7 +443,7 @@ class CaisseController extends GetxController {
         Period.month => DateTime(date.year, date.month - i, 1),
       };
       final (s, e) = _bounds(anchor, period);
-      final t = _totals(s, e);
+      final t = _totals(s, e, period);
       groups.add(
         BarGroup(
           label: switch (period) {
@@ -386,11 +466,19 @@ class CaisseController extends GetxController {
     return m.length <= 4 ? m : m.substring(0, 4);
   }
 
-  List<(String, int)> _repartition(List<Depense> deps) {
+  /// Les charges rejoignent la répartition quand elles pèsent sur le solde :
+  /// un camembert qui ignore le loyer dit le contraire de la carte voisine.
+  List<(String, int)> _repartition(List<Depense> deps, List<Charge> charges) {
     final byCat = <String, int>{};
     for (final d in deps) {
       final c = CategoryRules.of(d.libelle);
       byCat[c] = (byCat[c] ?? 0) + d.montant;
+    }
+    if (chargesIncluses) {
+      for (final ch in charges) {
+        final c = CategoryRules.resolveCharge(ch.categorie, ch.libelle);
+        byCat[c] = (byCat[c] ?? 0) + ch.montant;
+      }
     }
     final entries = byCat.entries.map((e) => (e.key, e.value)).toList()
       ..sort((a, b) => b.$2.compareTo(a.$2));
@@ -481,6 +569,160 @@ class CaisseController extends GetxController {
           ],
         ),
     ];
+  }
+
+  // ──────────────────────────────── Charges ────────────────────────────────
+  // Saisies dans l'app, pas importées : avec la facture JIRO, la seule autre
+  // écriture du produit. Une charge vaut pour un mois entier — elle n'a donc
+  // ni jour ni heure, contrairement à tout le reste de la base.
+
+  /// Charges du mois sélectionné, de la plus lourde à la plus légère.
+  List<ChargeMensuelle> get chargesDuMois {
+    final list =
+        _charges
+            .where(
+              (c) =>
+                  c.mois.year == moisCharges.year &&
+                  c.mois.month == moisCharges.month,
+            )
+            .toList()
+          ..sort((a, b) => b.montant.compareTo(a.montant));
+    return [
+      for (final c in list)
+        ChargeMensuelle(
+          id: c.idCharge,
+          libelle: c.libelle,
+          montant: c.montant,
+          mois: c.mois,
+          dateEnregistrement: c.dateEnregistrement,
+          categorie: c.categorie,
+        ),
+    ];
+  }
+
+  int get totalChargesDuMois =>
+      chargesDuMois.fold<int>(0, (s, c) => s + c.montant);
+
+  /// Ce que reprendrait « Reporter le mois précédent » — vide si le mois
+  /// courant est déjà servi, car le report n'écrase jamais une saisie.
+  List<ChargeMensuelle> get chargesReportables {
+    if (chargesDuMois.isNotEmpty) return const [];
+    final prev = DateTime(moisCharges.year, moisCharges.month - 1);
+    final list =
+        _charges
+            .where((c) => c.mois.year == prev.year && c.mois.month == prev.month)
+            .toList()
+          ..sort((a, b) => b.montant.compareTo(a.montant));
+    return [
+      for (final c in list)
+        ChargeMensuelle(
+          id: c.idCharge,
+          libelle: c.libelle,
+          montant: c.montant,
+          mois: c.mois,
+          dateEnregistrement: c.dateEnregistrement,
+          categorie: c.categorie,
+        ),
+    ];
+  }
+
+  Future<void> addCharge(BuildContext context) async {
+    final edit = await showChargeEditor(context, mois: moisCharges);
+    if (edit == null) return;
+    try {
+      await _db.saveCharge(
+        libelle: edit.libelle,
+        montant: edit.montant,
+        mois: edit.mois,
+        dateEnregistrement: edit.dateEnregistrement,
+        categorie: edit.categorie,
+      );
+      await load(keepDate: true);
+      moisCharges = DateTime(edit.mois.year, edit.mois.month);
+      update();
+      _toast('Charge ajoutée', '${edit.libelle} · ${Fmt.ar(edit.montant)}');
+    } catch (e) {
+      _toast('Charge non enregistrée', '$e', ok: false);
+    }
+  }
+
+  Future<void> editCharge(BuildContext context, ChargeMensuelle c) async {
+    final edit = await showChargeEditor(
+      context,
+      libelle: c.libelle,
+      montant: c.montant,
+      mois: c.mois,
+      dateEnregistrement: c.dateEnregistrement,
+      categorie: c.categorie,
+    );
+    if (edit == null) return;
+    try {
+      final touched = await _db.updateCharge(
+        id: c.id,
+        libelle: edit.libelle,
+        montant: edit.montant,
+        mois: edit.mois,
+        dateEnregistrement: edit.dateEnregistrement,
+        categorie: edit.categorie,
+      );
+      if (touched == 0) {
+        _toast(
+          'Charge introuvable',
+          'La ligne a disparu de la base entre-temps — rien n\'a été écrit.',
+          ok: false,
+        );
+        return;
+      }
+      await load(keepDate: true);
+      // Changer de mois sortirait la ligne du filtre : on suit la charge.
+      moisCharges = DateTime(edit.mois.year, edit.mois.month);
+      update();
+      _toast('Charge modifiée', '${edit.libelle} · ${Fmt.ar(edit.montant)}');
+    } catch (e) {
+      _toast('Modification impossible', '$e', ok: false);
+    }
+  }
+
+  Future<void> deleteCharge(ChargeMensuelle c) async {
+    try {
+      await _db.deleteCharge(c.id);
+      await load(keepDate: true);
+      _toast('Charge supprimée', '${c.libelle} · ${Fmt.ar(c.montant)}');
+    } catch (e) {
+      _toast('Suppression impossible', '$e', ok: false);
+    }
+  }
+
+  /// Recopie les charges du mois précédent sur le mois courant. Les montants
+  /// sont repris tels quels : une facture varie, l'utilisateur corrigera la
+  /// ligne — c'est toujours moins de frappe que de tout ressaisir.
+  Future<void> reconduireCharges() async {
+    final source = chargesReportables;
+    if (source.isEmpty) return;
+    try {
+      for (final c in source) {
+        // Sans date explicite, le report s'enregistre à maintenant : c'est
+        // bien aujourd'hui qu'on l'a saisi, même s'il reprend un vieux montant.
+        // La catégorie, elle, se reprend telle quelle — le report doit rendre
+        // la ligne du mois précédent, choix de catégorie compris.
+        await _db.saveCharge(
+          libelle: c.libelle,
+          montant: c.montant,
+          mois: moisCharges,
+          categorie: c.categorie,
+        );
+      }
+      await load(keepDate: true);
+      moisCharges = DateTime(moisCharges.year, moisCharges.month);
+      update();
+      _toast(
+        'Charges reportées',
+        '${source.length} ligne${source.length > 1 ? 's' : ''} reprise'
+            '${source.length > 1 ? 's' : ''} du mois précédent',
+      );
+    } catch (e) {
+      _toast('Report impossible', '$e', ok: false);
+    }
   }
 
   // ─────────────────────────────── Corrections ───────────────────────────────
@@ -677,8 +919,8 @@ class CaisseController extends GetxController {
     dateFacture: d.dateFacture,
   );
 
-  /// La seule écriture de l'application : enregistre la facture puis imprime
-  /// le PDF de partage.
+  /// Avec les charges mensuelles, l'une des deux écritures de l'application :
+  /// enregistre la facture puis imprime le PDF de partage.
   Future<void> saveJiroSharing(JiroDraft draft) async {
     final facture = FactureJiroModel(
       mois: draft.mois,

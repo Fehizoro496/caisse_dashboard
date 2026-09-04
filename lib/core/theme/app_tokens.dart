@@ -21,6 +21,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
     required this.expense,
     required this.drawing,
     required this.electric,
+    required this.charge,
     required this.success,
     required this.danger,
     required this.warning,
@@ -45,11 +46,12 @@ class AppTokens extends ThemeExtension<AppTokens> {
   final Color accent;
   final Color accentSoft;
 
-  /// Les quatre sémantiques métier — ne jamais les confondre.
+  /// Les cinq sémantiques métier — ne jamais les confondre.
   final Color income; // entrant / opérations
   final Color expense; // sortant / dépenses
   final Color drawing; // prélèvement
   final Color electric; // électricité / relevés
+  final Color charge; // charge fixe du mois — loyer, fournitures, factures
 
   /// Retour d'action (toasts, validations). Distinct des sémantiques métier :
   /// un import réussi n'est pas une entrée d'argent.
@@ -79,6 +81,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
     expense: Color(0xFFC8785C),
     drawing: Color(0xFF8570C9),
     electric: Color(0xFFBF9A3D),
+    charge: Color(0xFFB0637F),
     success: Color(0xFF2E9E7E),
     danger: Color(0xFFCE5150),
     warning: Color(0xFFC08F2F),
@@ -108,6 +111,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
     expense: Color(0xFFD6957A),
     drawing: Color(0xFFA898E0),
     electric: Color(0xFFD0B064),
+    charge: Color(0xFFD08CA4),
     success: Color(0xFF56B79B),
     danger: Color(0xFFE38381),
     warning: Color(0xFFDBB25E),
@@ -142,6 +146,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
     Color? expense,
     Color? drawing,
     Color? electric,
+    Color? charge,
     Color? success,
     Color? danger,
     Color? warning,
@@ -166,6 +171,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
       expense: expense ?? this.expense,
       drawing: drawing ?? this.drawing,
       electric: electric ?? this.electric,
+      charge: charge ?? this.charge,
       success: success ?? this.success,
       danger: danger ?? this.danger,
       warning: warning ?? this.warning,
@@ -196,6 +202,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
       expense: c(expense, other.expense),
       drawing: c(drawing, other.drawing),
       electric: c(electric, other.electric),
+      charge: c(charge, other.charge),
       success: c(success, other.success),
       danger: c(danger, other.danger),
       warning: c(warning, other.warning),

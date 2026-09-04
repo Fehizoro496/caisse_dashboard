@@ -363,6 +363,69 @@ class DBService extends GetxService {
         .get();
   }
 
+  // ─────────────────────────────── Charges ───────────────────────────────
+  // Deuxième et dernière source d'écriture de l'app avec la facture JIRO :
+  // les charges ne viennent pas de l'import, elles se saisissent ici.
+
+  Future<List<Charge>> getAllCharges() async {
+    return await database.select(database.charges).get();
+  }
+
+  Future<String> saveCharge({
+    required String libelle,
+    required int montant,
+    required DateTime mois,
+    DateTime? dateEnregistrement,
+    String? categorie,
+  }) async {
+    final id = generateUid();
+    await database
+        .into(database.charges)
+        .insert(
+          ChargesCompanion.insert(
+            idCharge: id,
+            libelle: libelle,
+            montant: montant,
+            mois: normalizeMois(mois),
+            dateEnregistrement: normalizeJour(
+              dateEnregistrement ?? DateTime.now(),
+            ),
+            categorie: drift_data_class.Value(categorie),
+          ),
+        );
+    return id;
+  }
+
+  /// Corrige une charge existante. Voir [updateOperation] pour l'identifiant.
+  Future<int> updateCharge({
+    required String id,
+    required String libelle,
+    required int montant,
+    required DateTime mois,
+    required DateTime dateEnregistrement,
+    String? categorie,
+  }) async {
+    return await (database.update(
+      database.charges,
+    )..where((tbl) => tbl.idCharge.equals(id))).write(
+      ChargesCompanion(
+        libelle: drift_data_class.Value(libelle),
+        montant: drift_data_class.Value(montant),
+        mois: drift_data_class.Value(normalizeMois(mois)),
+        dateEnregistrement: drift_data_class.Value(
+          normalizeJour(dateEnregistrement),
+        ),
+        categorie: drift_data_class.Value(categorie),
+      ),
+    );
+  }
+
+  Future<int> deleteCharge(String id) async {
+    return await (database.delete(
+      database.charges,
+    )..where((t) => t.idCharge.equals(id))).go();
+  }
+
   // CRUD FacturesJiro
   Future<List<FacturesJiroData>> getAllFacturesJiro() async {
     return await (database.select(

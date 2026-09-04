@@ -11,11 +11,16 @@ class SoldeNetCard extends StatelessWidget {
     required this.solde,
     required this.periodWord,
     this.deltaPercent,
+    this.formula = 'entrant − sortant − prélèv.',
   });
 
   final int solde;
   final String periodWord;
   final int? deltaPercent;
+
+  /// Rappel du calcul. Gagne un terme quand les charges du mois y entrent :
+  /// un solde qui change sans que la formule bouge passe pour une erreur.
+  final String formula;
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +71,7 @@ class SoldeNetCard extends StatelessWidget {
             children: [
               Flexible(
                 child: Text(
-                  'entrant − sortant − prélèv.',
+                  formula,
                   style: x.monoFaint,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -104,6 +109,7 @@ class TotalCard extends StatefulWidget {
     required this.sub,
     required this.color,
     this.onTap,
+    this.muted = false,
   });
 
   final String label;
@@ -111,6 +117,10 @@ class TotalCard extends StatefulWidget {
   final String sub;
   final Color color;
   final VoidCallback? onTap;
+
+  /// Montant affiché mais hors du solde — les charges quand l'utilisateur les
+  /// exclut. Le chiffre pâlit sans disparaître.
+  final bool muted;
 
   @override
   State<TotalCard> createState() => _TotalCardState();
@@ -144,7 +154,7 @@ class _TotalCardState extends State<TotalCard> {
             children: [
               Row(
                 children: [
-                  KindDot(widget.color),
+                  KindDot(widget.muted ? t.lineStrong : widget.color),
                   const SizedBox(width: 7),
                   Expanded(
                     child: Text(
@@ -160,7 +170,12 @@ class _TotalCardState extends State<TotalCard> {
               FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
-                child: Text(Fmt.num(widget.amount), style: x.statAmount),
+                child: Text(
+                  Fmt.num(widget.amount),
+                  style: widget.muted
+                      ? x.statAmount.copyWith(color: t.faint)
+                      : x.statAmount,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
@@ -375,9 +390,15 @@ class CategoryBreakdown extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Text(
-                  total == 0 ? '—' : '${(e.$2 / total * 100).round()} %',
-                  style: x.monoFaint,
+                // Sur une colonne étroite à texte agrandi, le pourcentage
+                // s'efface avant le montant : c'est lui le moins informatif.
+                Flexible(
+                  child: Text(
+                    total == 0 ? '—' : '${(e.$2 / total * 100).round()} %',
+                    style: x.monoFaint,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Text(Fmt.num(e.$2), style: x.monoBody),

@@ -274,8 +274,17 @@ class TotalBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          // La métadonnée cède avant le montant : un total tronqué serait un
+          // chiffre faux, alors qu'un « dont … » abrégé reste lisible.
           if (meta != null) ...[
-            Text(meta!, style: x.monoFaint),
+            Flexible(
+              child: Text(
+                meta!,
+                style: x.monoFaint,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             const SizedBox(width: 14),
           ],
           Text(
@@ -356,6 +365,84 @@ class _SegButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Interrupteur textuel bordé, au gabarit de [SegmentedRow] : la pastille
+/// s'allume quand la bascule est active. Utilisé pour l'inclusion des charges
+/// dans le solde du mois, où un `Switch` Material jurerait avec la barre.
+class TogglePill extends StatefulWidget {
+  const TogglePill({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    required this.color,
+    this.tooltip,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Color color;
+  final String? tooltip;
+
+  @override
+  State<TogglePill> createState() => _TogglePillState();
+}
+
+class _TogglePillState extends State<TogglePill> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final on = widget.value;
+
+    final pill = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: () => widget.onChanged(!on),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: on
+                ? t.surfaceAlt
+                : _hover
+                ? t.surfaceAlt
+                : Colors.transparent,
+            border: Border.all(color: _hover ? widget.color : t.line),
+            borderRadius: t.brSmall,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Éteinte, la pastille garde sa place : la barre ne bouge pas
+              // d'un pixel entre les deux états.
+              KindDot(on ? widget.color : t.lineStrong, size: 8),
+              const SizedBox(width: 8),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontFamily: AppFonts.sans,
+                  fontSize: 12,
+                  fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+                  color: on ? t.text : t.faint,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return widget.tooltip == null
+        ? pill
+        : Tooltip(message: widget.tooltip!, child: pill);
   }
 }
 

@@ -46,6 +46,31 @@ class PrelevementEdit {
   final DateTime date;
 }
 
+/// Saisie ou correction d'une charge mensuelle. Pas de date ni d'heure : une
+/// charge vaut pour un mois entier, c'est ce qui la distingue d'une dépense.
+class ChargeEdit {
+  const ChargeEdit({
+    required this.libelle,
+    required this.montant,
+    required this.mois,
+    required this.dateEnregistrement,
+    required this.categorie,
+  });
+
+  final String libelle;
+  final int montant;
+
+  /// Premier jour du mois d'imputation — ce qui décide du cadrage.
+  final DateTime mois;
+
+  /// Jour de la saisie, sans heure, indépendant du mois couvert.
+  final DateTime dateEnregistrement;
+
+  /// Catégorie retenue. Toujours renseignée : le formulaire part de la
+  /// déduction et n'enregistre que ce qui est affiché à l'écran.
+  final String categorie;
+}
+
 /// Correction d'un relevé électrique. Les index sont réels : un compteur ne
 /// tombe pas sur un entier rond.
 class ReleveEdit {
@@ -103,6 +128,27 @@ Future<PrelevementEdit?> showPrelevementEditor(
 }) => showDialog<PrelevementEdit>(
   context: context,
   builder: (_) => _PrelevementDialog(montant: montant, date: date),
+);
+
+/// Ouvre le formulaire d'une charge mensuelle. Sans [libelle] ni [montant],
+/// c'est une création ; sinon une correction.
+/// Retourne `null` si l'utilisateur annule ou ne change rien.
+Future<ChargeEdit?> showChargeEditor(
+  BuildContext context, {
+  String? libelle,
+  int? montant,
+  required DateTime mois,
+  DateTime? dateEnregistrement,
+  String? categorie,
+}) => showDialog<ChargeEdit>(
+  context: context,
+  builder: (_) => _ChargeDialog(
+    libelle: libelle,
+    montant: montant,
+    mois: mois,
+    dateEnregistrement: dateEnregistrement,
+    categorie: categorie,
+  ),
 );
 
 /// Ouvre le formulaire de correction d'un relevé électrique.
@@ -421,6 +467,287 @@ class _PrelevementDialogState extends State<_PrelevementDialog> {
           note: _blocage == null ? Fmt.ar(_montantValue) : null,
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────── Charge mens. ───────────────────────────────
+
+class _ChargeDialog extends StatefulWidget {
+  const _ChargeDialog({
+    required this.libelle,
+    required this.montant,
+    required this.mois,
+    required this.dateEnregistrement,
+    required this.categorie,
+  });
+
+  final String? libelle;
+  final int? montant;
+  final DateTime mois;
+  final DateTime? dateEnregistrement;
+
+  /// Catégorie déjà choisie, ou `null` : ni choix antérieur, ni création.
+  final String? categorie;
+
+  bool get creation => libelle == null;
+
+  @override
+  State<_ChargeDialog> createState() => _ChargeDialogState();
+}
+
+class _ChargeDialogState extends State<_ChargeDialog> {
+  late final _libelle = TextEditingController(text: widget.libelle ?? '');
+  late final _montant = TextEditingController(
+    text: widget.montant == null ? '' : '${widget.montant}',
+  );
+  late DateTime _mois = DateTime(widget.mois.year, widget.mois.month);
+
+  /// À la création, l'enregistrement est daté d'aujourd'hui — la valeur juste
+  /// dans l'immense majorité des cas, et corrigeable pour les autres.
+  /// Sans heure : c'est un jour de règlement, pas un horodatage.
+  late DateTime _date = _jour(widget.dateEnregistrement ?? DateTime.now());
+
+  static DateTime _jour(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  /// Catégorie retenue par l'utilisateur. Tant qu'elle est nulle, l'affichage
+  /// suit le libellé au fil de la frappe ; dès qu'une puce est cliquée, le
+  /// choix est figé et le libellé ne le rattrape plus.
+  late String? _categorie = widget.categorie;
+
+  String get _categorieValue =>
+      CategoryRules.resolveCharge(_categorie, _libelleValue);
+
+  /// Vrai tant que la catégorie affichée n'est qu'une proposition.
+  bool get _categorieDeduite => _categorie == null;
+
+  @override
+  void dispose() {
+    _libelle.dispose();
+    _montant.dispose();
+    super.dispose();
+  }
+
+  String get _libelleValue => _libelle.text.trim();
+  int get _montantValue => int.tryParse(_montant.text.trim()) ?? 0;
+
+  String? get _blocage {
+    if (_libelleValue.isEmpty) return 'Le libellé ne peut pas être vide.';
+    if (_montantValue <= 0) return 'Le montant doit être supérieur à zéro.';
+    return null;
+  }
+
+  bool get _modifie =>
+      widget.creation ||
+      _libelleValue != widget.libelle ||
+      _montantValue != widget.montant ||
+      _mois != DateTime(widget.mois.year, widget.mois.month) ||
+      widget.dateEnregistrement == null ||
+      _date != _jour(widget.dateEnregistrement!) ||
+      _categorieValue != CategoryRules.resolveCharge(widget.categorie, widget.libelle ?? '');
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2015),
+      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
+      locale: const Locale('fr', 'FR'),
+      helpText: 'Date d\'enregistrement',
+    );
+    if (picked == null) return;
+    setState(() => _date = _jour(picked));
+  }
+
+  Future<void> _pickMois() async {
+    // Flutter n'offre pas de sélecteur de mois : on ouvre le calendrier sur
+    // l'année et on ne retient que l'année et le mois du jour choisi.
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _mois,
+      firstDate: DateTime(2015),
+      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
+      initialDatePickerMode: DatePickerMode.year,
+      locale: const Locale('fr', 'FR'),
+      helpText: 'Mois d\'imputation',
+    );
+    if (picked == null) return;
+    setState(() => _mois = DateTime(picked.year, picked.month));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+
+    return _EditorShell(
+      title: widget.creation ? 'Nouvelle charge' : 'Modifier la charge',
+      subtitle: 'Imputée au mois entier · jamais au jour ni à la semaine',
+      accent: t.charge,
+      blocage: _blocage,
+      canSave: _blocage == null && _modifie,
+      onSave: () => Navigator.of(context).pop(
+        ChargeEdit(
+          libelle: _libelleValue,
+          montant: _montantValue,
+          mois: _mois,
+          dateEnregistrement: _date,
+          // On enregistre ce qui est à l'écran, choix explicite ou simple
+          // proposition acceptée : une charge relue plus tard doit retrouver
+          // sa catégorie même si les mots-clés changent entre-temps.
+          categorie: _categorieValue,
+        ),
+      ),
+      fields: [
+        _LabelledField(
+          label: 'Libellé',
+          child: TextField(
+            controller: _libelle,
+            autofocus: true,
+            style: context.texts.body,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              hintText: 'Ex. Loyer, Facture JIRAMA, Fournitures bureau',
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 2,
+              child: _LabelledField(
+                label: 'Montant (Ar)',
+                child: _IntegerField(
+                  controller: _montant,
+                  onChanged: () => setState(() {}),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 3,
+              child: _LabelledField(
+                label: 'Mois imputé',
+                child: _PickerButton(
+                  icon: Icons.event_repeat_outlined,
+                  label: Fmt.cap(Fmt.month(_mois)),
+                  onTap: _pickMois,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        // Deux dates, deux rôles : le mois ci-dessus décide du cadrage où la
+        // charge est comptée, celle-ci ne fait que dater la saisie.
+        _LabelledField(
+          label: 'Enregistrée le',
+          child: _PickerButton(
+            icon: Icons.calendar_today_outlined,
+            label: Fmt.cap(Fmt.longDate(_date)),
+            onTap: _pickDate,
+          ),
+        ),
+        const SizedBox(height: 14),
+        _LabelledField(
+          label: _categorieDeduite
+              ? 'Catégorie · proposée d\'après le libellé'
+              : 'Catégorie · choisie',
+          child: _CategoryDropdown(
+            selected: _categorieValue,
+            onChanged: (c) => setState(() => _categorie = c),
+          ),
+        ),
+        // Un règlement en retard ou par avance est courant : on le signale
+        // pour qu'il soit voulu, jamais on ne le corrige.
+        if (_date.year != _mois.year || _date.month != _mois.month) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Enregistrée en ${Fmt.month(_date)}, imputée à '
+            '${Fmt.month(_mois)} — le solde de ${Fmt.cap(Fmt.monthShort(_mois))} '
+            'la comptera.',
+            style: context.texts.caption.copyWith(height: 1.5),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Les catégories en liste déroulante, au gabarit des autres champs du
+/// formulaire : même hauteur, même bordure, même rayon que [_PickerButton],
+/// pour que la ligne ne se désaligne pas.
+class _CategoryDropdown extends StatelessWidget {
+  const _CategoryDropdown({required this.selected, required this.onChanged});
+
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final x = context.texts;
+
+    // `DropdownButton` exige que sa valeur figure parmi ses entrées, sous
+    // peine d'assertion. Une charge enregistrée sous une catégorie retirée
+    // depuis de `CategoryRules` ouvrirait donc sur un plantage : on lui rend
+    // son entrée plutôt que d'écraser en silence ce qui a été choisi.
+    final options = [
+      ...CategoryRules.chargeCategories,
+      if (!CategoryRules.chargeCategories.contains(selected)) selected,
+    ];
+
+    return ConstrainedBox(
+      // Plancher et non hauteur imposée : à texte agrandi, le champ grandit
+      // au lieu de rogner son contenu.
+      constraints: const BoxConstraints(minHeight: 39),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11),
+        decoration: BoxDecoration(
+          color: t.surface,
+          border: Border.all(color: t.line),
+          borderRadius: t.brSmall,
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: selected,
+            isExpanded: true,
+            isDense: true,
+            borderRadius: t.brSmall,
+            dropdownColor: t.surface,
+            focusColor: Colors.transparent,
+            icon: Icon(Icons.expand_more, size: 16, color: t.faint),
+            style: x.body,
+            onChanged: (v) {
+              if (v != null) onChanged(v);
+            },
+            items: [
+              for (final c in options)
+                DropdownMenuItem(
+                  value: c,
+                  child: Row(
+                    children: [
+                      // La pastille reprend le code couleur du tableau de
+                      // bord : la catégorie se reconnaît avant de se lire.
+                      KindDot(categoryColor(context, c), size: 6),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          c,
+                          style: x.body,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

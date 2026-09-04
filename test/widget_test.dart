@@ -73,6 +73,41 @@ void main() {
       expect(CategoryRules.of('Facture JIRAMA janvier'), 'Électricité');
       expect(CategoryRules.of('Achat divers'), CategoryRules.fallback);
     });
+
+    test('les charges ont leur propre jeu, plus court', () {
+      // « Facture » couvre à elle seule ce que les dépenses éclatent entre
+      // Électricité et Internet.
+      expect(CategoryRules.ofCharge('Facture JIRAMA janvier'), 'Facture');
+      expect(CategoryRules.ofCharge('Abonnement fibre'), 'Facture');
+      expect(CategoryRules.ofCharge('Loyer du local'), 'Loyer');
+      expect(CategoryRules.ofCharge('Entretien climatiseur'), 'Maintenance');
+      expect(CategoryRules.ofCharge('Ramette A4'), 'Fournitures');
+      expect(CategoryRules.ofCharge('Cotisation'), CategoryRules.fallback);
+    });
+
+    test('« bureau » ne bascule pas en Facture par la sous-chaîne « eau »', () {
+      // La recherche est une sous-chaîne : c'est le piège qui avait fait
+      // classer « rideau » ou « nouveau » en Fournitures côté dépenses.
+      expect(CategoryRules.ofCharge('Fournitures de bureau'), 'Fournitures');
+    });
+
+    test('toute déduction de charge tombe dans la liste proposée', () {
+      // Sans quoi la liste déroulante ouvrirait sur une valeur absente de
+      // ses entrées — l'assertion que `_CategoryDropdown` doit éviter.
+      for (final libelle in [
+        'Loyer',
+        'Facture JIRAMA',
+        'Entretien',
+        'Ramette',
+        'Libellé sans mot-clé',
+      ]) {
+        expect(
+          CategoryRules.chargeCategories,
+          contains(CategoryRules.ofCharge(libelle)),
+          reason: '« $libelle » sort de la liste',
+        );
+      }
+    });
   });
 
   group('PeriodTotals', () {

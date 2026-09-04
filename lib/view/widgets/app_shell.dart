@@ -3,11 +3,12 @@ import 'package:caisse_dashboard/core/theme/app_tokens.dart';
 import 'package:caisse_dashboard/view/widgets/panel.dart';
 import 'package:flutter/material.dart';
 
-/// Les six destinations + l'écran Sauvegarde, désormais exposé.
+/// Les sept destinations + l'écran Sauvegarde, désormais exposé.
 enum AppSection {
   dashboard('Tableau de bord'),
   operations('Opérations'),
   expenses('Dépenses'),
+  charges('Charges mens.'),
   drawings('Prélèvements'),
   meterReadings('Relevés élec.'),
   jiroSharing('Partage JIRO'),
@@ -59,6 +60,7 @@ class AppShell extends StatelessWidget {
     AppSection.dashboard,
     AppSection.operations,
     AppSection.expenses,
+    AppSection.charges,
     AppSection.drawings,
     AppSection.meterReadings,
     AppSection.jiroSharing,
@@ -70,6 +72,7 @@ class AppShell extends StatelessWidget {
       AppSection.dashboard => t.accent,
       AppSection.operations => t.income,
       AppSection.expenses => t.expense,
+      AppSection.charges => t.charge,
       AppSection.drawings => t.drawing,
       AppSection.meterReadings || AppSection.jiroSharing => t.electric,
       AppSection.backup => t.muted,
@@ -334,6 +337,7 @@ class DateToolbar extends StatelessWidget {
     required this.onPrev,
     this.onNext,
     this.onPickDate,
+    this.trailing,
   });
 
   final String label;
@@ -342,6 +346,9 @@ class DateToolbar extends StatelessWidget {
   final VoidCallback onPrev;
   final VoidCallback? onNext;
   final VoidCallback? onPickDate;
+
+  /// Contrôle propre au cadrage courant — la bascule des charges, en Mois.
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -387,6 +394,7 @@ class DateToolbar extends StatelessWidget {
           selected: period,
           onChanged: onPeriodChanged,
         ),
+        if (trailing != null) ...[const SizedBox(width: 10), trailing!],
       ],
     );
   }

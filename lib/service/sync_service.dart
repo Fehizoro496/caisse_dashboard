@@ -119,6 +119,16 @@ class SyncService extends GetxService {
       final importedFactures = await importedDb
           .select(importedDb.factures)
           .get();
+      // Une sauvegarde antérieure aux charges (schéma ≤ 9) n'a pas la table :
+      // drift la crée à l'ouverture, mais une archive écrite hors drift
+      // pourrait ne pas déclencher la migration. L'absence de charges ne doit
+      // pas faire échouer l'import du reste.
+      List<Charge> importedCharges;
+      try {
+        importedCharges = await importedDb.select(importedDb.charges).get();
+      } catch (_) {
+        importedCharges = const [];
+      }
 
       // Commencer la fusion des données dans une transaction
       await database.transaction(() async {
@@ -183,6 +193,21 @@ class SyncService extends GetxService {
           )..where((t) => t.idReleve.equals(rel.idReleve))).getSingleOrNull();
           if (exists == null) {
             await database.into(database.releves).insert(rel);
+            added++;
+          } else {
+            skipped++;
+          }
+        }
+
+        // Fusionner les charges. L'export chiffre le fichier SQLite entier :
+        // sans cette boucle, une charge saisie sur un poste partirait dans
+        // le .enc sans jamais revenir sur l'autre.
+        for (final ch in importedCharges) {
+          final exists = await (database.select(
+            database.charges,
+          )..where((t) => t.idCharge.equals(ch.idCharge))).getSingleOrNull();
+          if (exists == null) {
+            await database.into(database.charges).insert(ch);
             added++;
           } else {
             skipped++;

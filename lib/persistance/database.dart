@@ -20,6 +20,50 @@ class Depenses extends Table {
   DateTimeColumn get dateDepense => dateTime()();
 }
 
+/// Charges fixes du mois — loyer, fournitures, factures.
+///
+/// Ce n'est pas une dépense : une dépense a un jour, une charge n'en a pas.
+/// Une ligne vaut pour un mois entier, et n'est imputée qu'au cadrage Mois du
+/// tableau de bord. Les montants varient d'un mois à l'autre (une facture
+/// JIRAMA n'est pas un loyer), d'où une ligne par couple (libellé, mois)
+/// plutôt qu'un modèle d'abonnement à montant unique.
+class Charges extends Table {
+  TextColumn get idCharge => text()();
+  TextColumn get libelle => text()();
+  IntColumn get montant => integer()();
+
+  /// Premier jour du mois d'imputation, à 00:00 — voir `normalizeMois`.
+  /// C'est lui, et lui seul, qui décide du cadrage où la charge est comptée.
+  DateTimeColumn get mois => dateTime()();
+
+  /// Jour de la saisie, à 00:00 — voir `normalizeJour`. Distinct de [mois] à
+  /// dessein : le loyer d'août réglé le 3 septembre s'impute à août tout en
+  /// s'enregistrant en septembre. Sans effet sur les totaux — c'est une trace,
+  /// pas une clé. Pas d'heure : une charge se règle dans une journée, pas à
+  /// une minute près.
+  ///
+  /// Sans `withDefault` volontairement : un défaut SQL ne serait pas le même
+  /// selon que la table sort d'un `CREATE` ou d'un `ALTER` (voir la migration
+  /// v10 → v11), et drift s'en remettrait à lui sur les insertions muettes.
+  /// Valeur toujours fournie côté Dart, donc jamais de divergence.
+  DateTimeColumn get dateEnregistrement => dateTime()();
+
+  /// Catégorie choisie à la saisie. Nullable : les charges antérieures à cette
+  /// colonne n'en portent pas, et retombent alors sur la déduction par mots-clés
+  /// — voir `CategoryRules.resolveCharge`. C'est la seule table dont la catégorie est
+  /// stockée ; celle d'une dépense reste dérivée de son libellé.
+  TextColumn get categorie => text().nullable()();
+}
+
+/// Ramène une date au premier jour de son mois. Toute écriture dans `Charges`
+/// passe par là : deux charges du même mois doivent porter la même clé.
+DateTime normalizeMois(DateTime d) => DateTime(d.year, d.month);
+
+/// Ramène une date à son jour, à 00:00. Les charges ne portent pas d'heure :
+/// la retirer à l'écriture évite qu'un `DateTime.now()` en laisse traîner une
+/// que plus rien n'affiche.
+DateTime normalizeJour(DateTime d) => DateTime(d.year, d.month, d.day);
+
 class Operations extends Table {
   TextColumn get idOperation => text()(); // Changed from IntColumn
   TextColumn get nomOperation => text()();
@@ -75,7 +119,15 @@ class FacturesJiro extends Table {
 }
 
 @DriftDatabase(
-  tables: [Operations, Factures, Depenses, Prelevements, Releves, FacturesJiro],
+  tables: [
+    Operations,
+    Factures,
+    Depenses,
+    Prelevements,
+    Releves,
+    FacturesJiro,
+    Charges,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   // Private constructor
@@ -88,7 +140,7 @@ class AppDatabase extends _$AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   @override
-  int get schemaVersion => 9; // Increment schema version
+  int get schemaVersion => 12; // Increment schema version
 
   @override
   MigrationStrategy get migration {
@@ -97,7 +149,42 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (Migrator m, int from, int to) async {
+        // `createAll` émet des CREATE TABLE IF NOT EXISTS : ajouter une table
+        // (v9 → v10, `Charges`) ne demande donc aucune migration écrite. Une
+        // colonne ajoutée à une table existante, en revanche, en exige une —
+        // `createAll` laisse intacte une table déjà là.
         await m.createAll();
+
+        // Les deux pas suivants ne concernent QUE les bases où `Charges`
+        // existait déjà : venant d'avant la v10, la table sort de `createAll`
+        // avec toutes ses colonnes, et les rajouter lèverait « duplicate
+        // column name ». D'où des conditions sur des versions précises, et non
+        // sur `from < n`.
+
+        // v10 → v11 : `dateEnregistrement`.
+        if (from == 10) {
+          // SQLite refuse un DEFAULT non constant sur ALTER TABLE : pas de
+          // CURRENT_TIMESTAMP ici. On ajoute donc la colonne à zéro, puis on
+          // date les lignes existantes du premier jour du mois qu'elles
+          // couvrent — la seule date que ces lignes connaissent, et celle qui
+          // évite de les faire passer pour des saisies hors délai.
+          await m.database.customStatement(
+            'ALTER TABLE charges ADD COLUMN date_enregistrement '
+            'INTEGER NOT NULL DEFAULT 0',
+          );
+          await m.database.customStatement(
+            'UPDATE charges SET date_enregistrement = mois',
+          );
+        }
+
+        // v11 → v12 : `categorie`. Nullable, donc pas de DEFAULT à fournir et
+        // rien à rétro-remplir : les lignes sans catégorie choisie retombent
+        // sur la déduction par mots-clés, exactement comme avant la colonne.
+        if (from == 10 || from == 11) {
+          await m.database.customStatement(
+            'ALTER TABLE charges ADD COLUMN categorie TEXT NULL',
+          );
+        }
       },
       beforeOpen: (details) async {
         if (kDebugMode) {}

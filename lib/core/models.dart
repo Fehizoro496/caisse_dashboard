@@ -1,9 +1,10 @@
-/// Modèles de lecture. L'application ne crée aucune donnée : ces objets sont
-/// hydratés depuis SQLite après import d'une sauvegarde .enc. Seule la facture
-/// JIRO est produite par l'app.
+/// Modèles de lecture. La caisse elle-même — opérations, dépenses,
+/// prélèvements, relevés — n'est jamais créée ici : ces objets sont hydratés
+/// depuis SQLite après import d'une sauvegarde .enc. Deux exceptions, toutes
+/// deux saisies dans l'app : la facture JIRO et les charges mensuelles.
 ///
-/// Les tables Drift (`Operation`, `Depense`, `Prelevement`, `Releve`) restent la
-/// source ; ce fichier ne décrit que ce que les écrans manipulent.
+/// Les tables Drift (`Operation`, `Depense`, `Prelevement`, `Releve`, `Charge`)
+/// restent la source ; ce fichier ne décrit que ce que les écrans manipulent.
 library;
 
 /// Relevé électrique, projeté depuis la table `Releves`.
@@ -23,8 +24,12 @@ class ReleveElectricite {
   final double sousCompteur;
 }
 
-/// Catégorisation des dépenses. La base ne stocke pas de catégorie :
-/// on la dérive du libellé par mots-clés, avec « Divers » en repli.
+/// Catégorisation par mots-clés, avec « Divers » en repli.
+///
+/// Deux jeux distincts, et c'est voulu : une dépense se classe parmi huit
+/// familles dérivées de son libellé, jamais stockées ; une charge se classe
+/// parmi cinq, et son choix est enregistré. Les règles des dépenses ne
+/// s'appliquent donc pas aux charges — voir [ofCharge].
 class CategoryRules {
   static const fallback = 'Divers';
 
@@ -58,7 +63,8 @@ class CategoryRules {
     ],
     'Internet': ['internet', 'forfait', 'crédit', 'credit', 'téléphone'],
     'Salaires': ['salaire', 'journalier', 'opérateur', 'operateur'],
-    'Loyer': ['loyer'],
+    'Loyer': ['loyer', 'bail', 'charges locatives'],
+    'Fournitures': ['fourniture', 'bureau', 'nettoyage', 'eau'],
   };
 
   static String of(String libelle) {
@@ -69,6 +75,74 @@ class CategoryRules {
     return fallback;
   }
 
+  // ── Charges
+  // Les charges ont leur propre jeu, plus court : une charge est un loyer,
+  // une facture, des fournitures ou de la maintenance — les huit familles des
+  // dépenses n'auraient pas de sens ici. « Facture » y remplace à elle seule
+  // Électricité et Internet.
+
+  static const chargeCategories = [
+    'Fournitures',
+    'Loyer',
+    'Facture',
+    'Maintenance',
+    fallback,
+  ];
+
+  static const Map<String, List<String>> _chargeRules = {
+    'Loyer': ['loyer', 'bail', 'charges locatives'],
+    'Facture': [
+      'facture',
+      'jirama',
+      'jiro',
+      'électricité',
+      'electricite',
+      'internet',
+      'fibre',
+      'abonnement',
+      'forfait',
+      'téléphone',
+      'telephone',
+    ],
+    'Maintenance': [
+      'maintenance',
+      'réparation',
+      'reparation',
+      'entretien',
+      'outillage',
+    ],
+    'Fournitures': [
+      'fourniture',
+      'bureau',
+      'nettoyage',
+      'papier',
+      'ramette',
+      'consommable',
+      'toner',
+      'cartouche',
+      'encre',
+    ],
+  };
+
+  /// Catégorie proposée pour une charge. Volontairement sans mot-clé « eau » :
+  /// la recherche est une sous-chaîne, et « bureau » le contient — la facture
+  /// d'eau est déjà couverte par « facture ».
+  static String ofCharge(String libelle) {
+    final l = libelle.toLowerCase();
+    for (final e in _chargeRules.entries) {
+      if (e.value.any(l.contains)) return e.key;
+    }
+    return fallback;
+  }
+
+  /// Catégorie retenue pour une charge : le choix de la saisie s'il existe,
+  /// sinon la déduction par mots-clés. Un choix explicite ne bouge plus, même
+  /// si le libellé est corrigé ensuite — c'est tout l'intérêt de l'avoir fait.
+  static String resolveCharge(String? choisie, String libelle) {
+    final c = choisie?.trim();
+    return c == null || c.isEmpty ? ofCharge(libelle) : c;
+  }
+
   static const all = [
     'Papier',
     'Consommables',
@@ -77,6 +151,7 @@ class CategoryRules {
     'Internet',
     'Salaires',
     'Loyer',
+    'Fournitures',
     fallback,
   ];
 }
@@ -90,6 +165,8 @@ class PeriodTotals {
     required this.nbOperations,
     required this.nbDepenses,
     required this.nbPrelevements,
+    this.charges = 0,
+    this.nbCharges = 0,
   });
 
   final int entrant;
@@ -99,7 +176,16 @@ class PeriodTotals {
   final int nbDepenses;
   final int nbPrelevements;
 
-  int get soldeNet => entrant - sortant - prelevement;
+  /// Charges du mois. Vaut 0 hors cadrage Mois — une charge n'a pas de jour,
+  /// elle ne peut donc être imputée ni à un jour ni à une semaine. Vaut 0
+  /// aussi quand l'utilisateur les exclut depuis le tableau de bord ; d'où le
+  /// défaut, qui est l'état normal des deux tiers des cadrages.
+  final int charges;
+  final int nbCharges;
+
+  /// Solde après charges. La conséquence assumée : sur un mois chargé,
+  /// `soldeNet` du mois ne vaut plus la somme des `soldeNet` de ses jours.
+  int get soldeNet => entrant - sortant - prelevement - charges;
 
   static const empty = PeriodTotals(
     entrant: 0,
@@ -109,6 +195,43 @@ class PeriodTotals {
     nbDepenses: 0,
     nbPrelevements: 0,
   );
+}
+
+/// Une charge du mois, projetée depuis la table `Charges`.
+class ChargeMensuelle {
+  const ChargeMensuelle({
+    required this.id,
+    required this.libelle,
+    required this.montant,
+    required this.mois,
+    required this.dateEnregistrement,
+    this.categorie,
+  });
+
+  final String id;
+  final String libelle;
+  final int montant;
+
+  /// Catégorie choisie à la saisie, ou `null` pour une charge antérieure au
+  /// choix explicite. Passer par [categorieEffective] plutôt que par ce champ.
+  final String? categorie;
+
+  /// La catégorie à afficher et à compter : le choix, sinon la déduction.
+  String get categorieEffective => CategoryRules.resolveCharge(categorie, libelle);
+
+  /// Premier jour du mois d'imputation — ce qui décide du cadrage.
+  final DateTime mois;
+
+  /// Jour de la saisie, à 00:00 — les charges ne portent pas d'heure. Peut
+  /// tomber dans un autre mois que [mois] : un loyer d'août réglé début
+  /// septembre s'impute toujours à août.
+  final DateTime dateEnregistrement;
+
+  /// La saisie a-t-elle eu lieu hors du mois qu'elle couvre ? Vrai pour un
+  /// règlement en retard ou par avance — à signaler, jamais à corriger.
+  bool get horsMois =>
+      dateEnregistrement.year != mois.year ||
+      dateEnregistrement.month != mois.month;
 }
 
 /// Résolution d'un sous-compteur pour le partage JIRO.

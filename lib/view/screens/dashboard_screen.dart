@@ -16,6 +16,8 @@ class DashboardData {
     required this.depenses,
     required this.trend,
     required this.repartition,
+    this.chargesDuMois = const [],
+    this.chargesIncluses = true,
   });
 
   final PeriodTotals totals;
@@ -25,9 +27,18 @@ class DashboardData {
   final List<OperationRow> operations;
   final List<DepenseRow> depenses;
 
+  /// Charges du mois — vide hors cadrage Mois. Peuplée même quand
+  /// [chargesIncluses] est faux : la carte les montre alors sans les imputer.
+  final List<DepenseRow> chargesDuMois;
+
+  /// Les charges pèsent-elles sur [PeriodTotals.soldeNet] ?
+  final bool chargesIncluses;
+
   /// 7 jours / 8 semaines / 6 mois selon le cadrage.
   final List<BarGroup> trend;
   final List<(String, int)> repartition;
+
+  int get totalCharges => chargesDuMois.fold<int>(0, (s, c) => s + c.montant);
 
   static const empty = DashboardData(
     totals: PeriodTotals.empty,
@@ -85,6 +96,7 @@ class DashboardScreen extends StatelessWidget {
     this.error,
     this.onRetry,
     this.onPickDate,
+    this.onToggleCharges,
   });
 
   final DashboardData data;
@@ -102,6 +114,13 @@ class DashboardScreen extends StatelessWidget {
   final Object? error;
   final VoidCallback? onRetry;
   final VoidCallback? onPickDate;
+
+  /// Bascule l'imputation des charges au solde. N'apparaît qu'en cadrage Mois.
+  final ValueChanged<bool>? onToggleCharges;
+
+  /// Les charges ne concernent que le mois : partout ailleurs, ni carte,
+  /// ni bascule, ni bloc dans le panneau des dépenses.
+  bool get _showCharges => period == Period.month;
 
   int get _stepDays => switch (period) {
     Period.day => 1,
@@ -137,13 +156,26 @@ class DashboardScreen extends StatelessWidget {
 
   /// Barre d'outils à passer à [AppShell.toolbar] : navigation de date
   /// + cadrage Jour/Semaine/Mois. L'écran ne dessine pas la barre lui-même.
-  Widget buildToolbar() => DateToolbar(
-    label: _dateLabel,
-    period: period,
-    onPeriodChanged: onPeriodChanged,
-    onPrev: () => onDateChanged(date.subtract(Duration(days: _stepDays))),
-    onNext: _nextDate == null ? null : () => onDateChanged(_nextDate!),
-    onPickDate: onPickDate,
+  Widget buildToolbar() => Builder(
+    builder: (context) => DateToolbar(
+      label: _dateLabel,
+      period: period,
+      onPeriodChanged: onPeriodChanged,
+      onPrev: () => onDateChanged(date.subtract(Duration(days: _stepDays))),
+      onNext: _nextDate == null ? null : () => onDateChanged(_nextDate!),
+      onPickDate: onPickDate,
+      trailing: _showCharges && onToggleCharges != null
+          ? TogglePill(
+              label: 'Charges',
+              value: data.chargesIncluses,
+              color: context.tokens.charge,
+              onChanged: onToggleCharges!,
+              tooltip: data.chargesIncluses
+                  ? 'Les charges du mois pèsent sur le solde net'
+                  : 'Les charges du mois sont affichées mais hors du solde',
+            )
+          : null,
+    ),
   );
 
   /// Hauteurs plancher des trois bandes. En dessous de leur somme, la page
@@ -161,8 +193,9 @@ class DashboardScreen extends StatelessWidget {
       onRetry: onRetry,
       child: LayoutBuilder(
         builder: (context, box) {
-          // Sous ~1180 px les quatre cartes de tête passent sur deux rangs.
-          final tight = box.maxWidth < 1180;
+          // Sous ~1180 px les cartes de tête passent sur deux rangs. En Mois,
+          // la carte Charges en ajoute une : le seuil monte d'autant.
+          final tight = box.maxWidth < (_showCharges ? 1400 : 1180);
 
           // Estimation, seulement pour décider du passage en défilement :
           // la bande réelle s'ajuste toute seule à son contenu.
@@ -178,6 +211,9 @@ class DashboardScreen extends StatelessWidget {
             delta: _delta,
             wrap: tight,
             onOpenSection: onOpenSection,
+            charges: _showCharges ? data.totalCharges : null,
+            nbCharges: data.chargesDuMois.length,
+            chargesIncluses: data.chargesIncluses,
           );
 
           if (short) {
@@ -310,6 +346,9 @@ class _TotalsRow extends StatelessWidget {
     required this.delta,
     required this.wrap,
     required this.onOpenSection,
+    required this.charges,
+    required this.nbCharges,
+    required this.chargesIncluses,
   });
 
   final PeriodTotals totals;
@@ -318,6 +357,12 @@ class _TotalsRow extends StatelessWidget {
   final bool wrap;
   final ValueChanged<AppSection> onOpenSection;
 
+  /// Total des charges du mois, ou `null` hors cadrage Mois — auquel cas la
+  /// quatrième carte n'existe pas.
+  final int? charges;
+  final int nbCharges;
+  final bool chargesIncluses;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -325,6 +370,9 @@ class _TotalsRow extends StatelessWidget {
       solde: totals.soldeNet,
       periodWord: periodWord,
       deltaPercent: delta,
+      formula: charges != null && chargesIncluses
+          ? 'entrant − sortant − prélèv. − charges'
+          : 'entrant − sortant − prélèv.',
     );
     final cards = [
       TotalCard(
@@ -348,6 +396,19 @@ class _TotalsRow extends StatelessWidget {
         color: t.drawing,
         onTap: () => onOpenSection(AppSection.drawings),
       ),
+      if (charges != null)
+        TotalCard(
+          label: 'Charges',
+          amount: charges!,
+          // Exclues, elles restent affichées : cacher le loyer parce qu'il
+          // ne compte pas ferait croire qu'il n'a pas été saisi.
+          sub: chargesIncluses
+              ? '$nbCharges ${nbCharges > 1 ? 'charges' : 'charge'} · mois entier'
+              : 'hors solde net',
+          color: t.charge,
+          muted: !chargesIncluses,
+          onTap: () => onOpenSection(AppSection.charges),
+        ),
     ];
 
     if (!wrap) {
@@ -459,68 +520,143 @@ class _OperationsPanel extends StatelessWidget {
   }
 }
 
+/// Une entrée du panneau : soit un intertitre de section, soit une ligne.
+/// Les charges y voisinent les dépenses sans se confondre avec elles — même
+/// colonne de montants, section et pastille distinctes.
+class _PanelEntry {
+  const _PanelEntry.section(this.title) : row = null, charge = false;
+  const _PanelEntry.line(DepenseRow this.row, {this.charge = false})
+    : title = null;
+
+  final String? title;
+  final DepenseRow? row;
+  final bool charge;
+
+  bool get isSection => title != null;
+}
+
 class _DepensesPanel extends StatelessWidget {
   const _DepensesPanel({required this.data});
   final DashboardData data;
 
+  List<_PanelEntry> get _entries {
+    final charges = data.chargesDuMois;
+    return [
+      if (charges.isNotEmpty) ...[
+        _PanelEntry.section(
+          data.chargesIncluses ? 'Charges du mois' : 'Charges du mois · exclues',
+        ),
+        for (final c in charges) _PanelEntry.line(c, charge: true),
+        if (data.depenses.isNotEmpty) const _PanelEntry.section('Dépenses'),
+      ],
+      for (final d in data.depenses) _PanelEntry.line(d),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final x = context.texts;
+    final entries = _entries;
+    final nbCharges = data.chargesDuMois.length;
 
     return Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PanelHeader(
-            title: 'Dépenses',
-            meta: '${data.depenses.length} lignes',
+            title: nbCharges > 0 ? 'Dépenses et charges' : 'Dépenses',
+            meta: nbCharges > 0
+                ? '${data.depenses.length} + $nbCharges lignes'
+                : '${data.depenses.length} lignes',
           ),
           Expanded(
-            child: data.depenses.isEmpty
+            child: entries.isEmpty
                 ? const EmptyState(title: 'Aucune dépense sur cette période.')
                 : ListView.builder(
-                    itemCount: data.depenses.length,
+                    itemCount: entries.length,
                     itemBuilder: (context, i) {
-                      final d = data.depenses[i];
-                      return Container(
-                        height: t.rowHeight,
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: BoxDecoration(
-                          border: Border(bottom: BorderSide(color: t.line)),
-                        ),
-                        child: Row(
-                          children: [
-                            KindDot(
-                              categoryColor(context, d.categorie),
-                              size: 6,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                d.libelle,
-                                style: x.body,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              d.categorie.toUpperCase(),
-                              style: x.columnHeader,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(Fmt.num(d.montant), style: x.monoBody),
-                          ],
-                        ),
-                      );
+                      final e = entries[i];
+                      return e.isSection
+                          ? TotalBar(
+                              height: 26,
+                              label: e.title!,
+                              value: '',
+                            )
+                          : _Line(
+                              entry: e,
+                              pale: e.charge && !data.chargesIncluses,
+                            );
                     },
                   ),
           ),
           TotalBar(
-            label: 'Total sortant',
-            value: Fmt.ar(data.totals.sortant),
+            label: data.totals.charges > 0
+                ? 'Sortant + charges'
+                : 'Total sortant',
+            meta: data.totals.charges > 0
+                ? 'dont ${Fmt.num(data.totals.charges)}'
+                : null,
+            value: Fmt.ar(data.totals.sortant + data.totals.charges),
             valueColor: t.expense,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Line extends StatelessWidget {
+  const _Line({required this.entry, required this.pale});
+  final _PanelEntry entry;
+
+  /// Charge exclue du solde : affichée en retrait, car elle est bien saisie —
+  /// simplement pas comptée.
+  final bool pale;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final x = context.texts;
+    final d = entry.row!;
+
+    return Container(
+      height: t.rowHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: t.line)),
+      ),
+      child: Row(
+        children: [
+          KindDot(
+            entry.charge ? t.charge : categoryColor(context, d.categorie),
+            size: 6,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 3,
+            child: Text(
+              d.libelle,
+              style: pale ? x.bodyMuted : x.body,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          // « ÉLECTRICITÉ » à texte agrandi pousserait le montant hors de la
+          // ligne : la catégorie s'abrège, jamais le chiffre.
+          Flexible(
+            flex: 2,
+            child: Text(
+              d.categorie.toUpperCase(),
+              style: x.columnHeader,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            Fmt.num(d.montant),
+            style: pale ? x.monoFaint : x.monoBody,
           ),
         ],
       ),
@@ -555,7 +691,11 @@ Color categoryColor(BuildContext context, String categorie) {
     'Électricité' => t.electric,
     'Internet' => t.income,
     'Salaires' => t.muted,
-    'Loyer' => t.text,
+    'Loyer' => t.charge,
+    'Fournitures' => t.text,
+    // Propre aux charges : « Facture » y couvre ce qu'Électricité et Internet
+    // séparent côté dépenses, d'où la couleur de l'électricité, qui domine.
+    'Facture' => t.electric,
     _ => t.faint,
   };
 }

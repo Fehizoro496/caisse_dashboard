@@ -51,7 +51,45 @@ void main() {
     repartition: const [('Papier', 18500)],
   );
 
-  Widget harness(double textScale) => MaterialApp(
+  /// Le cadrage Mois ajoute une quatrième carte de tête — celle des charges —
+  /// et un bloc de plus dans le panneau des dépenses. C'est le cas le plus
+  /// serré de la bande, donc celui qui déborde en premier.
+  final dataMois = DashboardData(
+    totals: const PeriodTotals(
+      entrant: 760200,
+      sortant: 185000,
+      prelevement: 90000,
+      nbOperations: 11,
+      nbDepenses: 3,
+      nbPrelevements: 1,
+      charges: 480000,
+      nbCharges: 3,
+    ),
+    previousTotals: data.previousTotals,
+    operations: data.operations,
+    depenses: data.depenses,
+    chargesDuMois: const [
+      DepenseRow(libelle: 'Loyer', categorie: 'Loyer', montant: 350000),
+      DepenseRow(
+        libelle: 'Facture JIRAMA',
+        categorie: 'Électricité',
+        montant: 95000,
+      ),
+      DepenseRow(
+        libelle: 'Fournitures bureau',
+        categorie: 'Fournitures',
+        montant: 35000,
+      ),
+    ],
+    trend: data.trend,
+    repartition: const [('Loyer', 350000), ('Papier', 18500)],
+  );
+
+  Widget harness(
+    double textScale, {
+    Period period = Period.day,
+    DashboardData? content,
+  }) => MaterialApp(
     theme: buildAppTheme(brightness: Brightness.light),
     home: Builder(
       builder: (context) => MediaQuery(
@@ -62,13 +100,14 @@ void main() {
           body: Padding(
             padding: EdgeInsets.all(context.tokens.pad),
             child: DashboardScreen(
-              data: data,
+              data: content ?? data,
               date: DateTime(2026, 8, 21),
-              period: Period.day,
+              period: period,
               lastRecordDate: DateTime(2026, 8, 21),
               onPeriodChanged: (_) {},
               onDateChanged: (_) {},
               onOpenSection: (_) {},
+              onToggleCharges: (_) {},
             ),
           ),
         ),
@@ -104,8 +143,84 @@ void main() {
           expect(tester.takeException(), isNull);
         },
       );
+
+      testWidgets(
+        'dashboard mois + charges ${size.width.toInt()}x'
+        '${size.height.toInt()} · texte ×$scale',
+        (tester) async {
+          tester.view.physicalSize = size;
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+
+          await tester.pumpWidget(
+            harness(scale, period: Period.month, content: dataMois),
+          );
+          await tester.pump();
+
+          expect(tester.takeException(), isNull);
+        },
+      );
     }
   }
+
+  testWidgets('la carte Charges n\'existe qu\'au cadrage Mois', (tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(harness(1.0));
+    await tester.pump();
+    expect(find.byType(TotalCard), findsNWidgets(3));
+    expect(find.text('CHARGES'), findsNothing);
+
+    await tester.pumpWidget(
+      harness(1.0, period: Period.month, content: dataMois),
+    );
+    await tester.pump();
+    expect(find.byType(TotalCard), findsNWidgets(4));
+    expect(find.text('CHARGES'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('charges exclues : le montant reste, le solde remonte', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    // Ce que produit le contrôleur quand la bascule est sur « off » :
+    // `totals.charges` retombe à 0, `chargesDuMois` reste peuplée.
+    final exclues = DashboardData(
+      totals: const PeriodTotals(
+        entrant: 760200,
+        sortant: 185000,
+        prelevement: 90000,
+        nbOperations: 11,
+        nbDepenses: 3,
+        nbPrelevements: 1,
+      ),
+      previousTotals: dataMois.previousTotals,
+      operations: dataMois.operations,
+      depenses: dataMois.depenses,
+      chargesDuMois: dataMois.chargesDuMois,
+      chargesIncluses: false,
+      trend: dataMois.trend,
+      repartition: dataMois.repartition,
+    );
+
+    await tester.pumpWidget(
+      harness(1.0, period: Period.month, content: exclues),
+    );
+    await tester.pump();
+
+    // La carte montre toujours les 480 000 Ar saisis…
+    expect(exclues.totalCharges, 480000);
+    // …mais le solde ne les retranche plus.
+    expect(exclues.totals.soldeNet, 760200 - 185000 - 90000);
+    expect(find.text('hors solde net'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('sur deux rangs, la carte dépasse le plancher de la bande', (
     tester,

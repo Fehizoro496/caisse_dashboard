@@ -2,6 +2,7 @@ import 'package:caisse_dashboard/controller/caisse_controller.dart';
 import 'package:caisse_dashboard/controller/theme_controller.dart';
 import 'package:caisse_dashboard/core/format.dart';
 import 'package:caisse_dashboard/view/screens/backup_screen.dart';
+import 'package:caisse_dashboard/view/screens/charges_screen.dart';
 import 'package:caisse_dashboard/view/screens/dashboard_screen.dart';
 import 'package:caisse_dashboard/view/screens/jiro_screen.dart';
 import 'package:caisse_dashboard/view/screens/ledger_screen.dart';
@@ -33,6 +34,7 @@ class HomePage extends StatelessWidget {
             onPeriodChanged: c.setPeriod,
             onDateChanged: c.setDate,
             onPickDate: () => c.pickDate(context),
+            onToggleCharges: c.setChargesIncluses,
             onOpenSection: c.openSection,
           );
 
@@ -76,6 +78,25 @@ class HomePage extends StatelessWidget {
                 sort: c.sortDepenses,
                 onSortChanged: (s) => c.setSort(AppSection.expenses, s),
                 items: c.loading ? const [] : c.depenseItems(context),
+                loading: c.loading,
+                error: c.error,
+                onRetry: c.load,
+              ),
+            ),
+            AppSection.charges => (
+              'Charges mensuelles',
+              'Loyer, fournitures, factures · imputées au mois entier — '
+                  'jamais au jour ni à la semaine',
+              ChargesScreen(
+                charges: c.loading ? const [] : c.chargesDuMois,
+                mois: c.moisCharges,
+                onMoisChanged: c.setMoisCharges,
+                onAdd: () => c.addCharge(context),
+                onEdit: (ch) => c.editCharge(context, ch),
+                onDelete: c.deleteCharge,
+                reportables: c.loading ? const [] : c.chargesReportables,
+                onReport: c.reconduireCharges,
+                incluses: c.chargesIncluses,
                 loading: c.loading,
                 error: c.error,
                 onRetry: c.load,
