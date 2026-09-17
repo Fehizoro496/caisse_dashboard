@@ -7,8 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
-/// `Charges` a gagné deux colonnes après coup : `dateEnregistrement` (v11)
-/// puis `categorie` (v12). Trois chemins mènent donc à la v12, et ils ne font
+/// `Charges` s'est étoffée après coup : `dateEnregistrement` (v11),
+/// `categorie` (v12), puis `quantite` et le renommage de `montant` en
+/// `prix_unitaire` (v13). Quatre chemins mènent donc à la v13, et ils ne font
 /// pas la même chose — venant d'avant la v10 la table sort de `createAll`
 /// complète, alors qu'au-delà il faut la compléter par des ALTER. Se tromper
 /// de condition rend la base illisible au lancement, sans que rien d'autre ne
@@ -63,7 +64,17 @@ void main() {
     date_enregistrement INTEGER NOT NULL
   ''';
 
-  test('v10 → v12 : les deux colonnes arrivent, la charge survit', () async {
+  /// Celle de la v12 : tout sauf la quantité, et `montant` pas encore renommé.
+  const v12 = '''
+    id_charge TEXT NOT NULL,
+    libelle TEXT NOT NULL,
+    montant INTEGER NOT NULL,
+    mois INTEGER NOT NULL,
+    date_enregistrement INTEGER NOT NULL,
+    categorie TEXT NULL
+  ''';
+
+  test('v10 → v13 : toutes les colonnes arrivent, la charge survit', () async {
     final db = AppDatabase.fromFile(
       seed(10, colonnesCharges: v10, valeurs: "'c1', 'Loyer', 350000, 1754000000"),
     );
@@ -71,7 +82,10 @@ void main() {
 
     final charge = await db.select(db.charges).getSingle();
     expect(charge.libelle, 'Loyer');
-    expect(charge.montant, 350000);
+    // Le montant d'origine devient le prix unitaire, et la quantité par
+    // défaut vaut 1 : le total de la ligne ne bouge pas d'un ariary.
+    expect(charge.prixUnitaire, 350000);
+    expect(charge.quantite, 1);
     // Faute de mieux, la ligne d'avant la colonne est datée du mois qu'elle
     // couvre — donc jamais signalée comme saisie hors délai.
     expect(charge.dateEnregistrement, charge.mois);
@@ -83,7 +97,7 @@ void main() {
     expect(await db.select(db.depenses).get(), hasLength(1));
   });
 
-  test('v11 → v12 : seule la catégorie manque, la date est préservée', () async {
+  test('v11 → v13 : la catégorie et la quantité arrivent, la date tient', () async {
     final db = AppDatabase.fromFile(
       seed(
         11,
@@ -101,7 +115,28 @@ void main() {
     expect(charge.dateEnregistrement, isNot(charge.mois));
   });
 
-  test('v9 → v12 : la table naît complète, sans double ajout de colonne', () async {
+  test('v12 → v13 : montant devient prix unitaire, quantité à 1', () async {
+    final db = AppDatabase.fromFile(
+      seed(
+        12,
+        colonnesCharges: v12,
+        valeurs:
+            "'c1', 'Loyer', 350000, 1754000000, 1754956800, 'Loyer'",
+      ),
+    );
+    addTearDown(db.close);
+
+    final charge = await db.select(db.charges).getSingle();
+    // Le renommage préserve la valeur : ce qui était le montant total d'une
+    // ligne sans quantité devient son prix unitaire, et le total est inchangé.
+    expect(charge.prixUnitaire, 350000);
+    expect(charge.quantite, 1);
+    // Le reste de la ligne traverse le RENAME COLUMN intact.
+    expect(charge.categorie, 'Loyer');
+    expect(charge.dateEnregistrement.millisecondsSinceEpoch, 1754956800 * 1000);
+  });
+
+  test('v9 → v13 : la table naît complète, sans double ajout de colonne', () async {
     final db = AppDatabase.fromFile(seed(9));
     addTearDown(db.close);
 
@@ -117,14 +152,16 @@ void main() {
           ChargesCompanion.insert(
             idCharge: 'x',
             libelle: 'Cotisation association',
-            montant: 120000,
+            prixUnitaire: 120000,
+            quantite: const Value(3),
             mois: DateTime(2026, 8),
             dateEnregistrement: DateTime(2026, 8, 12),
             categorie: const Value('Facture'),
           ),
         );
     final inserted = await db.select(db.charges).getSingle();
-    expect(inserted.montant, 120000);
+    expect(inserted.prixUnitaire, 120000);
+    expect(inserted.quantite, 3);
     expect(inserted.mois, DateTime(2026, 8));
     // Le choix explicite prime sur la déduction, qui dirait « Divers » ici.
     expect(CategoryRules.ofCharge('Cotisation association'), 'Divers');

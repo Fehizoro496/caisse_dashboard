@@ -373,8 +373,9 @@ class DBService extends GetxService {
 
   Future<String> saveCharge({
     required String libelle,
-    required int montant,
+    required int prixUnitaire,
     required DateTime mois,
+    int quantite = 1,
     DateTime? dateEnregistrement,
     String? categorie,
   }) async {
@@ -385,7 +386,8 @@ class DBService extends GetxService {
           ChargesCompanion.insert(
             idCharge: id,
             libelle: libelle,
-            montant: montant,
+            prixUnitaire: prixUnitaire,
+            quantite: drift_data_class.Value(quantite),
             mois: normalizeMois(mois),
             dateEnregistrement: normalizeJour(
               dateEnregistrement ?? DateTime.now(),
@@ -400,9 +402,10 @@ class DBService extends GetxService {
   Future<int> updateCharge({
     required String id,
     required String libelle,
-    required int montant,
+    required int prixUnitaire,
     required DateTime mois,
     required DateTime dateEnregistrement,
+    int quantite = 1,
     String? categorie,
   }) async {
     return await (database.update(
@@ -410,7 +413,8 @@ class DBService extends GetxService {
     )..where((tbl) => tbl.idCharge.equals(id))).write(
       ChargesCompanion(
         libelle: drift_data_class.Value(libelle),
-        montant: drift_data_class.Value(montant),
+        prixUnitaire: drift_data_class.Value(prixUnitaire),
+        quantite: drift_data_class.Value(quantite),
         mois: drift_data_class.Value(normalizeMois(mois)),
         dateEnregistrement: drift_data_class.Value(
           normalizeJour(dateEnregistrement),

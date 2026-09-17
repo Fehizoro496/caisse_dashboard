@@ -2582,16 +2582,28 @@ class $ChargesTable extends Charges with TableInfo<$ChargesTable, Charge> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _montantMeta = const VerificationMeta(
-    'montant',
+  static const VerificationMeta _prixUnitaireMeta = const VerificationMeta(
+    'prixUnitaire',
   );
   @override
-  late final GeneratedColumn<int> montant = GeneratedColumn<int>(
-    'montant',
+  late final GeneratedColumn<int> prixUnitaire = GeneratedColumn<int>(
+    'prix_unitaire',
     aliasedName,
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
+  );
+  static const VerificationMeta _quantiteMeta = const VerificationMeta(
+    'quantite',
+  );
+  @override
+  late final GeneratedColumn<int> quantite = GeneratedColumn<int>(
+    'quantite',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
   );
   static const VerificationMeta _moisMeta = const VerificationMeta('mois');
   @override
@@ -2628,7 +2640,8 @@ class $ChargesTable extends Charges with TableInfo<$ChargesTable, Charge> {
   List<GeneratedColumn> get $columns => [
     idCharge,
     libelle,
-    montant,
+    prixUnitaire,
+    quantite,
     mois,
     dateEnregistrement,
     categorie,
@@ -2661,13 +2674,22 @@ class $ChargesTable extends Charges with TableInfo<$ChargesTable, Charge> {
     } else if (isInserting) {
       context.missing(_libelleMeta);
     }
-    if (data.containsKey('montant')) {
+    if (data.containsKey('prix_unitaire')) {
       context.handle(
-        _montantMeta,
-        montant.isAcceptableOrUnknown(data['montant']!, _montantMeta),
+        _prixUnitaireMeta,
+        prixUnitaire.isAcceptableOrUnknown(
+          data['prix_unitaire']!,
+          _prixUnitaireMeta,
+        ),
       );
     } else if (isInserting) {
-      context.missing(_montantMeta);
+      context.missing(_prixUnitaireMeta);
+    }
+    if (data.containsKey('quantite')) {
+      context.handle(
+        _quantiteMeta,
+        quantite.isAcceptableOrUnknown(data['quantite']!, _quantiteMeta),
+      );
     }
     if (data.containsKey('mois')) {
       context.handle(
@@ -2711,9 +2733,13 @@ class $ChargesTable extends Charges with TableInfo<$ChargesTable, Charge> {
         DriftSqlType.string,
         data['${effectivePrefix}libelle'],
       )!,
-      montant: attachedDatabase.typeMapping.read(
+      prixUnitaire: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}montant'],
+        data['${effectivePrefix}prix_unitaire'],
+      )!,
+      quantite: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}quantite'],
       )!,
       mois: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -2739,7 +2765,16 @@ class $ChargesTable extends Charges with TableInfo<$ChargesTable, Charge> {
 class Charge extends DataClass implements Insertable<Charge> {
   final String idCharge;
   final String libelle;
-  final int montant;
+
+  /// Prix d'une unité. Le total de la ligne vaut `prixUnitaire * quantite` :
+  /// une charge n'est pas toujours un montant nu — trois ramettes ou deux
+  /// bidons se saisissent au prix unitaire, comme une opération.
+  final int prixUnitaire;
+
+  /// Nombre d'unités. Vaut 1 pour un loyer ou une facture, qui ne se comptent
+  /// pas. Le défaut est une constante, donc identique que la colonne sorte
+  /// d'un CREATE ou d'un ALTER — contrairement au piège de `dateEnregistrement`.
+  final int quantite;
 
   /// Premier jour du mois d'imputation, à 00:00 — voir `normalizeMois`.
   /// C'est lui, et lui seul, qui décide du cadrage où la charge est comptée.
@@ -2759,13 +2794,14 @@ class Charge extends DataClass implements Insertable<Charge> {
 
   /// Catégorie choisie à la saisie. Nullable : les charges antérieures à cette
   /// colonne n'en portent pas, et retombent alors sur la déduction par mots-clés
-  /// — voir `CategoryRules.resolve`. C'est la seule table dont la catégorie est
+  /// — voir `CategoryRules.resolveCharge`. C'est la seule table dont la catégorie est
   /// stockée ; celle d'une dépense reste dérivée de son libellé.
   final String? categorie;
   const Charge({
     required this.idCharge,
     required this.libelle,
-    required this.montant,
+    required this.prixUnitaire,
+    required this.quantite,
     required this.mois,
     required this.dateEnregistrement,
     this.categorie,
@@ -2775,7 +2811,8 @@ class Charge extends DataClass implements Insertable<Charge> {
     final map = <String, Expression>{};
     map['id_charge'] = Variable<String>(idCharge);
     map['libelle'] = Variable<String>(libelle);
-    map['montant'] = Variable<int>(montant);
+    map['prix_unitaire'] = Variable<int>(prixUnitaire);
+    map['quantite'] = Variable<int>(quantite);
     map['mois'] = Variable<DateTime>(mois);
     map['date_enregistrement'] = Variable<DateTime>(dateEnregistrement);
     if (!nullToAbsent || categorie != null) {
@@ -2788,7 +2825,8 @@ class Charge extends DataClass implements Insertable<Charge> {
     return ChargesCompanion(
       idCharge: Value(idCharge),
       libelle: Value(libelle),
-      montant: Value(montant),
+      prixUnitaire: Value(prixUnitaire),
+      quantite: Value(quantite),
       mois: Value(mois),
       dateEnregistrement: Value(dateEnregistrement),
       categorie: categorie == null && nullToAbsent
@@ -2805,7 +2843,8 @@ class Charge extends DataClass implements Insertable<Charge> {
     return Charge(
       idCharge: serializer.fromJson<String>(json['idCharge']),
       libelle: serializer.fromJson<String>(json['libelle']),
-      montant: serializer.fromJson<int>(json['montant']),
+      prixUnitaire: serializer.fromJson<int>(json['prixUnitaire']),
+      quantite: serializer.fromJson<int>(json['quantite']),
       mois: serializer.fromJson<DateTime>(json['mois']),
       dateEnregistrement: serializer.fromJson<DateTime>(
         json['dateEnregistrement'],
@@ -2819,7 +2858,8 @@ class Charge extends DataClass implements Insertable<Charge> {
     return <String, dynamic>{
       'idCharge': serializer.toJson<String>(idCharge),
       'libelle': serializer.toJson<String>(libelle),
-      'montant': serializer.toJson<int>(montant),
+      'prixUnitaire': serializer.toJson<int>(prixUnitaire),
+      'quantite': serializer.toJson<int>(quantite),
       'mois': serializer.toJson<DateTime>(mois),
       'dateEnregistrement': serializer.toJson<DateTime>(dateEnregistrement),
       'categorie': serializer.toJson<String?>(categorie),
@@ -2829,14 +2869,16 @@ class Charge extends DataClass implements Insertable<Charge> {
   Charge copyWith({
     String? idCharge,
     String? libelle,
-    int? montant,
+    int? prixUnitaire,
+    int? quantite,
     DateTime? mois,
     DateTime? dateEnregistrement,
     Value<String?> categorie = const Value.absent(),
   }) => Charge(
     idCharge: idCharge ?? this.idCharge,
     libelle: libelle ?? this.libelle,
-    montant: montant ?? this.montant,
+    prixUnitaire: prixUnitaire ?? this.prixUnitaire,
+    quantite: quantite ?? this.quantite,
     mois: mois ?? this.mois,
     dateEnregistrement: dateEnregistrement ?? this.dateEnregistrement,
     categorie: categorie.present ? categorie.value : this.categorie,
@@ -2845,7 +2887,10 @@ class Charge extends DataClass implements Insertable<Charge> {
     return Charge(
       idCharge: data.idCharge.present ? data.idCharge.value : this.idCharge,
       libelle: data.libelle.present ? data.libelle.value : this.libelle,
-      montant: data.montant.present ? data.montant.value : this.montant,
+      prixUnitaire: data.prixUnitaire.present
+          ? data.prixUnitaire.value
+          : this.prixUnitaire,
+      quantite: data.quantite.present ? data.quantite.value : this.quantite,
       mois: data.mois.present ? data.mois.value : this.mois,
       dateEnregistrement: data.dateEnregistrement.present
           ? data.dateEnregistrement.value
@@ -2859,7 +2904,8 @@ class Charge extends DataClass implements Insertable<Charge> {
     return (StringBuffer('Charge(')
           ..write('idCharge: $idCharge, ')
           ..write('libelle: $libelle, ')
-          ..write('montant: $montant, ')
+          ..write('prixUnitaire: $prixUnitaire, ')
+          ..write('quantite: $quantite, ')
           ..write('mois: $mois, ')
           ..write('dateEnregistrement: $dateEnregistrement, ')
           ..write('categorie: $categorie')
@@ -2871,7 +2917,8 @@ class Charge extends DataClass implements Insertable<Charge> {
   int get hashCode => Object.hash(
     idCharge,
     libelle,
-    montant,
+    prixUnitaire,
+    quantite,
     mois,
     dateEnregistrement,
     categorie,
@@ -2882,7 +2929,8 @@ class Charge extends DataClass implements Insertable<Charge> {
       (other is Charge &&
           other.idCharge == this.idCharge &&
           other.libelle == this.libelle &&
-          other.montant == this.montant &&
+          other.prixUnitaire == this.prixUnitaire &&
+          other.quantite == this.quantite &&
           other.mois == this.mois &&
           other.dateEnregistrement == this.dateEnregistrement &&
           other.categorie == this.categorie);
@@ -2891,7 +2939,8 @@ class Charge extends DataClass implements Insertable<Charge> {
 class ChargesCompanion extends UpdateCompanion<Charge> {
   final Value<String> idCharge;
   final Value<String> libelle;
-  final Value<int> montant;
+  final Value<int> prixUnitaire;
+  final Value<int> quantite;
   final Value<DateTime> mois;
   final Value<DateTime> dateEnregistrement;
   final Value<String?> categorie;
@@ -2899,7 +2948,8 @@ class ChargesCompanion extends UpdateCompanion<Charge> {
   const ChargesCompanion({
     this.idCharge = const Value.absent(),
     this.libelle = const Value.absent(),
-    this.montant = const Value.absent(),
+    this.prixUnitaire = const Value.absent(),
+    this.quantite = const Value.absent(),
     this.mois = const Value.absent(),
     this.dateEnregistrement = const Value.absent(),
     this.categorie = const Value.absent(),
@@ -2908,20 +2958,22 @@ class ChargesCompanion extends UpdateCompanion<Charge> {
   ChargesCompanion.insert({
     required String idCharge,
     required String libelle,
-    required int montant,
+    required int prixUnitaire,
+    this.quantite = const Value.absent(),
     required DateTime mois,
     required DateTime dateEnregistrement,
     this.categorie = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : idCharge = Value(idCharge),
        libelle = Value(libelle),
-       montant = Value(montant),
+       prixUnitaire = Value(prixUnitaire),
        mois = Value(mois),
        dateEnregistrement = Value(dateEnregistrement);
   static Insertable<Charge> custom({
     Expression<String>? idCharge,
     Expression<String>? libelle,
-    Expression<int>? montant,
+    Expression<int>? prixUnitaire,
+    Expression<int>? quantite,
     Expression<DateTime>? mois,
     Expression<DateTime>? dateEnregistrement,
     Expression<String>? categorie,
@@ -2930,7 +2982,8 @@ class ChargesCompanion extends UpdateCompanion<Charge> {
     return RawValuesInsertable({
       if (idCharge != null) 'id_charge': idCharge,
       if (libelle != null) 'libelle': libelle,
-      if (montant != null) 'montant': montant,
+      if (prixUnitaire != null) 'prix_unitaire': prixUnitaire,
+      if (quantite != null) 'quantite': quantite,
       if (mois != null) 'mois': mois,
       if (dateEnregistrement != null) 'date_enregistrement': dateEnregistrement,
       if (categorie != null) 'categorie': categorie,
@@ -2941,7 +2994,8 @@ class ChargesCompanion extends UpdateCompanion<Charge> {
   ChargesCompanion copyWith({
     Value<String>? idCharge,
     Value<String>? libelle,
-    Value<int>? montant,
+    Value<int>? prixUnitaire,
+    Value<int>? quantite,
     Value<DateTime>? mois,
     Value<DateTime>? dateEnregistrement,
     Value<String?>? categorie,
@@ -2950,7 +3004,8 @@ class ChargesCompanion extends UpdateCompanion<Charge> {
     return ChargesCompanion(
       idCharge: idCharge ?? this.idCharge,
       libelle: libelle ?? this.libelle,
-      montant: montant ?? this.montant,
+      prixUnitaire: prixUnitaire ?? this.prixUnitaire,
+      quantite: quantite ?? this.quantite,
       mois: mois ?? this.mois,
       dateEnregistrement: dateEnregistrement ?? this.dateEnregistrement,
       categorie: categorie ?? this.categorie,
@@ -2967,8 +3022,11 @@ class ChargesCompanion extends UpdateCompanion<Charge> {
     if (libelle.present) {
       map['libelle'] = Variable<String>(libelle.value);
     }
-    if (montant.present) {
-      map['montant'] = Variable<int>(montant.value);
+    if (prixUnitaire.present) {
+      map['prix_unitaire'] = Variable<int>(prixUnitaire.value);
+    }
+    if (quantite.present) {
+      map['quantite'] = Variable<int>(quantite.value);
     }
     if (mois.present) {
       map['mois'] = Variable<DateTime>(mois.value);
@@ -2990,7 +3048,8 @@ class ChargesCompanion extends UpdateCompanion<Charge> {
     return (StringBuffer('ChargesCompanion(')
           ..write('idCharge: $idCharge, ')
           ..write('libelle: $libelle, ')
-          ..write('montant: $montant, ')
+          ..write('prixUnitaire: $prixUnitaire, ')
+          ..write('quantite: $quantite, ')
           ..write('mois: $mois, ')
           ..write('dateEnregistrement: $dateEnregistrement, ')
           ..write('categorie: $categorie, ')
@@ -4562,7 +4621,8 @@ typedef $$ChargesTableCreateCompanionBuilder =
     ChargesCompanion Function({
       required String idCharge,
       required String libelle,
-      required int montant,
+      required int prixUnitaire,
+      Value<int> quantite,
       required DateTime mois,
       required DateTime dateEnregistrement,
       Value<String?> categorie,
@@ -4572,7 +4632,8 @@ typedef $$ChargesTableUpdateCompanionBuilder =
     ChargesCompanion Function({
       Value<String> idCharge,
       Value<String> libelle,
-      Value<int> montant,
+      Value<int> prixUnitaire,
+      Value<int> quantite,
       Value<DateTime> mois,
       Value<DateTime> dateEnregistrement,
       Value<String?> categorie,
@@ -4598,8 +4659,13 @@ class $$ChargesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get montant => $composableBuilder(
-    column: $table.montant,
+  ColumnFilters<int> get prixUnitaire => $composableBuilder(
+    column: $table.prixUnitaire,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get quantite => $composableBuilder(
+    column: $table.quantite,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4638,8 +4704,13 @@ class $$ChargesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get montant => $composableBuilder(
-    column: $table.montant,
+  ColumnOrderings<int> get prixUnitaire => $composableBuilder(
+    column: $table.prixUnitaire,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get quantite => $composableBuilder(
+    column: $table.quantite,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -4674,8 +4745,13 @@ class $$ChargesTableAnnotationComposer
   GeneratedColumn<String> get libelle =>
       $composableBuilder(column: $table.libelle, builder: (column) => column);
 
-  GeneratedColumn<int> get montant =>
-      $composableBuilder(column: $table.montant, builder: (column) => column);
+  GeneratedColumn<int> get prixUnitaire => $composableBuilder(
+    column: $table.prixUnitaire,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get quantite =>
+      $composableBuilder(column: $table.quantite, builder: (column) => column);
 
   GeneratedColumn<DateTime> get mois =>
       $composableBuilder(column: $table.mois, builder: (column) => column);
@@ -4719,7 +4795,8 @@ class $$ChargesTableTableManager
               ({
                 Value<String> idCharge = const Value.absent(),
                 Value<String> libelle = const Value.absent(),
-                Value<int> montant = const Value.absent(),
+                Value<int> prixUnitaire = const Value.absent(),
+                Value<int> quantite = const Value.absent(),
                 Value<DateTime> mois = const Value.absent(),
                 Value<DateTime> dateEnregistrement = const Value.absent(),
                 Value<String?> categorie = const Value.absent(),
@@ -4727,7 +4804,8 @@ class $$ChargesTableTableManager
               }) => ChargesCompanion(
                 idCharge: idCharge,
                 libelle: libelle,
-                montant: montant,
+                prixUnitaire: prixUnitaire,
+                quantite: quantite,
                 mois: mois,
                 dateEnregistrement: dateEnregistrement,
                 categorie: categorie,
@@ -4737,7 +4815,8 @@ class $$ChargesTableTableManager
               ({
                 required String idCharge,
                 required String libelle,
-                required int montant,
+                required int prixUnitaire,
+                Value<int> quantite = const Value.absent(),
                 required DateTime mois,
                 required DateTime dateEnregistrement,
                 Value<String?> categorie = const Value.absent(),
@@ -4745,7 +4824,8 @@ class $$ChargesTableTableManager
               }) => ChargesCompanion.insert(
                 idCharge: idCharge,
                 libelle: libelle,
-                montant: montant,
+                prixUnitaire: prixUnitaire,
+                quantite: quantite,
                 mois: mois,
                 dateEnregistrement: dateEnregistrement,
                 categorie: categorie,

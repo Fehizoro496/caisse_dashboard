@@ -55,8 +55,10 @@ class ChargesScreen extends StatelessWidget {
     Col('Charge', flex: 3),
     Col('Catégorie', flex: 2),
     Col('Enregistrée le', flex: 2, numeric: true),
-    Col('Montant', flex: 2, numeric: true),
-    Col('', width: 44),
+    Col('P.U.', flex: 2, numeric: true),
+    Col('Qté', numeric: true),
+    Col('Total', flex: 2, numeric: true),
+    Col('', width: 76),
   ];
 
   @override
@@ -153,12 +155,39 @@ class ChargesScreen extends StatelessWidget {
                                           ),
                                         ),
                                         Text(
+                                          Fmt.num(c.prixUnitaire),
+                                          style: x.monoMuted,
+                                        ),
+                                        // « ×1 » n'apprend rien : le tiret
+                                        // laisse la colonne parlante aux seules
+                                        // lignes qui portent une quantité.
+                                        Text(
+                                          c.multiple ? "${c.quantite}" : '—',
+                                          style: c.multiple
+                                              ? x.monoBody
+                                              : x.monoFaint,
+                                        ),
+                                        Text(
                                           Fmt.num(c.montant),
                                           style: x.monoBody,
                                         ),
-                                        _DeleteButton(
-                                          onConfirmed: () => onDelete(c),
-                                          libelle: c.libelle,
+                                        // Le crayon double le clic sur la
+                                        // ligne : sans lui, la seule icône
+                                        // visible serait la corbeille, et
+                                        // rien ne dirait qu'une charge se
+                                        // corrige.
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            RowEditButton(
+                                              onTap: () => onEdit(c),
+                                            ),
+                                            const SizedBox(width: 2),
+                                            _DeleteButton(
+                                              onConfirmed: () => onDelete(c),
+                                              libelle: c.libelle,
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     );

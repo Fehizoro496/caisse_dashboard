@@ -46,19 +46,26 @@ class PrelevementEdit {
   final DateTime date;
 }
 
-/// Saisie ou correction d'une charge mensuelle. Pas de date ni d'heure : une
-/// charge vaut pour un mois entier, c'est ce qui la distingue d'une dépense.
+/// Saisie ou correction d'une charge mensuelle. Elle porte deux dates aux
+/// rôles distincts — le mois imputé, qui décide du cadrage où elle est
+/// comptée, et le jour de la saisie, qui n'est qu'une trace.
 class ChargeEdit {
   const ChargeEdit({
     required this.libelle,
-    required this.montant,
+    required this.prixUnitaire,
     required this.mois,
     required this.dateEnregistrement,
     required this.categorie,
+    this.quantite = 1,
   });
 
   final String libelle;
-  final int montant;
+
+  /// Prix d'une unité ; le total vaut [prixUnitaire] × [quantite].
+  final int prixUnitaire;
+  final int quantite;
+
+  int get montant => prixUnitaire * quantite;
 
   /// Premier jour du mois d'imputation — ce qui décide du cadrage.
   final DateTime mois;
@@ -130,24 +137,28 @@ Future<PrelevementEdit?> showPrelevementEditor(
   builder: (_) => _PrelevementDialog(montant: montant, date: date),
 );
 
-/// Ouvre le formulaire d'une charge mensuelle. Sans [libelle] ni [montant],
-/// c'est une création ; sinon une correction.
+/// Ouvre le formulaire d'une charge mensuelle. Sans [libelle] ni
+/// [prixUnitaire], c'est une création ; sinon une correction.
 /// Retourne `null` si l'utilisateur annule ou ne change rien.
 Future<ChargeEdit?> showChargeEditor(
   BuildContext context, {
   String? libelle,
-  int? montant,
+  int? prixUnitaire,
+  int? quantite,
   required DateTime mois,
   DateTime? dateEnregistrement,
   String? categorie,
+  List<ChargeSuggestion> suggestions = const [],
 }) => showDialog<ChargeEdit>(
   context: context,
   builder: (_) => _ChargeDialog(
     libelle: libelle,
-    montant: montant,
+    prixUnitaire: prixUnitaire,
+    quantite: quantite,
     mois: mois,
     dateEnregistrement: dateEnregistrement,
     categorie: categorie,
+    suggestions: suggestions,
   ),
 );
 
@@ -226,7 +237,7 @@ class _OperationDialogState extends State<_OperationDialog> {
           'à ${Fmt.hour(widget.date)}',
       accent: t.income,
       blocage: _blocage,
-      canSave: _blocage == null && _modifie,
+      canSave: _modifie,
       onSave: () => Navigator.of(context).pop(
         OperationEdit(
           nom: _nomValue,
@@ -350,7 +361,7 @@ class _DepenseDialogState extends State<_DepenseDialog> {
           'à ${Fmt.hour(widget.date)}',
       accent: t.expense,
       blocage: _blocage,
-      canSave: _blocage == null && _modifie,
+      canSave: _modifie,
       onSave: () => Navigator.of(context).pop(
         DepenseEdit(
           libelle: _libelleValue,
@@ -439,7 +450,7 @@ class _PrelevementDialogState extends State<_PrelevementDialog> {
           'à ${Fmt.hour(widget.date)}',
       accent: t.drawing,
       blocage: _blocage,
-      canSave: _blocage == null && _modifie,
+      canSave: _modifie,
       onSave: () => Navigator.of(
         context,
       ).pop(PrelevementEdit(montant: _montantValue, date: _date)),
@@ -476,15 +487,22 @@ class _PrelevementDialogState extends State<_PrelevementDialog> {
 class _ChargeDialog extends StatefulWidget {
   const _ChargeDialog({
     required this.libelle,
-    required this.montant,
+    required this.prixUnitaire,
+    required this.quantite,
     required this.mois,
     required this.dateEnregistrement,
     required this.categorie,
+    required this.suggestions,
   });
 
   final String? libelle;
-  final int? montant;
+  final int? prixUnitaire;
+  final int? quantite;
   final DateTime mois;
+
+  /// Libellés déjà employés en base, proposés pendant la frappe, avec ce
+  /// qu'ils valaient la dernière fois.
+  final List<ChargeSuggestion> suggestions;
   final DateTime? dateEnregistrement;
 
   /// Catégorie déjà choisie, ou `null` : ni choix antérieur, ni création.
@@ -497,10 +515,14 @@ class _ChargeDialog extends StatefulWidget {
 }
 
 class _ChargeDialogState extends State<_ChargeDialog> {
-  late final _libelle = TextEditingController(text: widget.libelle ?? '');
-  late final _montant = TextEditingController(
-    text: widget.montant == null ? '' : '${widget.montant}',
+  late final _libelle = _InlineCompletionController()
+    ..text = widget.libelle ?? '';
+  late final _prix = TextEditingController(
+    text: widget.prixUnitaire == null ? '' : '${widget.prixUnitaire}',
   );
+  // Une charge sans quantité est une charge d'une unité : le champ part à 1
+  // plutôt que vide, pour que le loyer se saisisse sans y toucher.
+  late final _qte = TextEditingController(text: '${widget.quantite ?? 1}');
   late DateTime _mois = DateTime(widget.mois.year, widget.mois.month);
 
   /// À la création, l'enregistrement est daté d'aujourd'hui — la valeur juste
@@ -523,24 +545,89 @@ class _ChargeDialogState extends State<_ChargeDialog> {
 
   @override
   void dispose() {
-    _libelle.dispose();
-    _montant.dispose();
+    for (final c in [_libelle, _prix, _qte]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
+  /// Longueur précédente du libellé, pour distinguer une frappe d'un effacement.
+  late int _libelleAvant = (widget.libelle ?? '').length;
+
+  /// Recalcule la complétion grisée après chaque frappe.
+  ///
+  /// Rien après un effacement : reproposer ce que l'utilisateur vient de
+  /// retirer l'empêcherait de corriger sa saisie, la fin du mot repoussant
+  /// chaque caractère supprimé.
+  void _majCompletion() {
+    final t = _libelle.text;
+    final efface = t.length < _libelleAvant;
+    _libelleAvant = t.length;
+    _inline = efface ? null : _suggestionPour(t);
+    _libelle.propose(_inline?.libelle);
+  }
+
+  /// La proposition affichée en gris, retenue pour que Tab reprenne aussi son
+  /// prix et non le seul libellé.
+  ChargeSuggestion? _inline;
+
+  /// Ce que la frappe en cours rappelle en base. Rien tant que le champ est
+  /// vide — ouvrir le formulaire sur deux cents libellés n'aiderait personne —
+  /// et rien non plus quand la saisie tombe déjà pile sur une proposition.
+  /// Le libellé connu que la frappe en cours prolonge, s'il y en a un.
+  ///
+  /// Un préfixe, et rien d'autre : une proposition qui ne commencerait pas par
+  /// ce qui est tapé ne pourrait pas s'afficher à sa suite. Rien non plus tant
+  /// que le champ est vide, ni quand la saisie tombe déjà pile dessus.
+  ChargeSuggestion? _suggestionPour(String saisie) {
+    final q = saisie.trim().toLowerCase();
+    if (q.isEmpty) return null;
+    for (final s in widget.suggestions) {
+      final b = s.libelle.toLowerCase();
+      if (b == q) return null;
+      if (b.startsWith(q)) return s;
+    }
+    return null;
+  }
+
+  /// Reprend ce que la proposition valait la dernière fois.
+  ///
+  /// Le prix et la quantité écrasent ce qui était déjà saisi : accepter une
+  /// proposition, c'est demander la ligne précédente en entier, et un prix
+  /// resté sur une autre valeur serait un piège. Les deux vont ensemble — le
+  /// prix des ramettes sans leurs douze unités donnerait un total faux.
+  ///
+  /// La catégorie fait exception quand elle a été choisie à la main : c'est un
+  /// geste délibéré, que la frappe du libellé ne doit pas défaire.
+  void _appliquer(ChargeSuggestion s) {
+    if (s.prixUnitaire != null) _prix.text = '${s.prixUnitaire}';
+    _qte.text = '${s.quantite}';
+    _categorie ??= s.categorie;
+  }
+
   String get _libelleValue => _libelle.text.trim();
-  int get _montantValue => int.tryParse(_montant.text.trim()) ?? 0;
+  int get _prixValue => int.tryParse(_prix.text.trim()) ?? 0;
+  /// Un champ de quantité laissé vide vaut une unité : c'est le cas du loyer
+  /// et des factures, qui ne se comptent pas. Seul un zéro saisi bloque.
+  int get _qteValue {
+    final t = _qte.text.trim();
+    return t.isEmpty ? 1 : (int.tryParse(t) ?? 0);
+  }
+
+  int get _totalValue => _prixValue * _qteValue;
 
   String? get _blocage {
     if (_libelleValue.isEmpty) return 'Le libellé ne peut pas être vide.';
-    if (_montantValue <= 0) return 'Le montant doit être supérieur à zéro.';
+    if (_prixValue <= 0) return 'Le prix unitaire doit être supérieur à zéro.';
+    if (_qteValue < 1) return 'La quantité doit être au moins 1.';
     return null;
   }
 
   bool get _modifie =>
       widget.creation ||
       _libelleValue != widget.libelle ||
-      _montantValue != widget.montant ||
+      _prixValue != widget.prixUnitaire ||
+      _qteValue != (widget.quantite ?? 1) ||
       _mois != DateTime(widget.mois.year, widget.mois.month) ||
       widget.dateEnregistrement == null ||
       _date != _jour(widget.dateEnregistrement!) ||
@@ -584,11 +671,12 @@ class _ChargeDialogState extends State<_ChargeDialog> {
       subtitle: 'Imputée au mois entier · jamais au jour ni à la semaine',
       accent: t.charge,
       blocage: _blocage,
-      canSave: _blocage == null && _modifie,
+      canSave: _modifie,
       onSave: () => Navigator.of(context).pop(
         ChargeEdit(
           libelle: _libelleValue,
-          montant: _montantValue,
+          prixUnitaire: _prixValue,
+          quantite: _qteValue,
           mois: _mois,
           dateEnregistrement: _date,
           // On enregistre ce qui est à l'écran, choix explicite ou simple
@@ -600,14 +688,45 @@ class _ChargeDialogState extends State<_ChargeDialog> {
       fields: [
         _LabelledField(
           label: 'Libellé',
-          child: TextField(
-            controller: _libelle,
-            autofocus: true,
-            style: context.texts.body,
-            textCapitalization: TextCapitalization.sentences,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              hintText: 'Ex. Loyer, Facture JIRAMA, Fournitures bureau',
+          // Pas de liste déroulée sous le champ : la complétion se lit en
+          // gris à la suite de la frappe, et Tab l'accepte.
+          child: Focus(
+            // Le Focus est un ancêtre du champ : posées sur son propre nœud,
+            // ces touches seraient déjà consommées par l'édition de texte.
+            onKeyEvent: (node, event) {
+              if (event is! KeyDownEvent || _libelle.reste.isEmpty) {
+                return KeyEventResult.ignored;
+              }
+              final k = event.logicalKey;
+              if (k == LogicalKeyboardKey.tab ||
+                  k == LogicalKeyboardKey.arrowRight) {
+                setState(() {
+                  final s = _inline;
+                  _libelle.accept();
+                  _libelleAvant = _libelle.text.length;
+                  if (s != null) _appliquer(s);
+                  _inline = null;
+                });
+                return KeyEventResult.handled;
+              }
+              if (k == LogicalKeyboardKey.escape) {
+                setState(() {
+                  _libelle.propose(null);
+                  _inline = null;
+                });
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: TextField(
+              controller: _libelle,
+              autofocus: true,
+              style: context.texts.body,
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (_) => setState(_majCompletion),
+              decoration: const InputDecoration(
+                hintText: 'Ex. Loyer, Facture JIRAMA, Fournitures bureau',
+              ),
             ),
           ),
         ),
@@ -618,26 +737,34 @@ class _ChargeDialogState extends State<_ChargeDialog> {
             Expanded(
               flex: 2,
               child: _LabelledField(
-                label: 'Montant (Ar)',
+                label: 'Prix unitaire (Ar)',
                 child: _IntegerField(
-                  controller: _montant,
+                  controller: _prix,
                   onChanged: () => setState(() {}),
                 ),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 3,
               child: _LabelledField(
-                label: 'Mois imputé',
-                child: _PickerButton(
-                  icon: Icons.event_repeat_outlined,
-                  label: Fmt.cap(Fmt.month(_mois)),
-                  onTap: _pickMois,
+                label: 'Quantité',
+                child: _IntegerField(
+                  controller: _qte,
+                  hint: '1',
+                  onChanged: () => setState(() {}),
                 ),
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 14),
+        _LabelledField(
+          label: 'Mois imputé',
+          child: _PickerButton(
+            icon: Icons.event_repeat_outlined,
+            label: Fmt.cap(Fmt.month(_mois)),
+            onTap: _pickMois,
+          ),
         ),
         const SizedBox(height: 14),
         // Deux dates, deux rôles : le mois ci-dessus décide du cadrage où la
@@ -649,6 +776,17 @@ class _ChargeDialogState extends State<_ChargeDialog> {
             label: Fmt.cap(Fmt.longDate(_date)),
             onTap: _pickDate,
           ),
+        ),
+        const SizedBox(height: 14),
+        // Le total est calculé, jamais saisi : le montrer évite de multiplier
+        // de tête pour vérifier ce qui partira dans le solde du mois.
+        _Preview(
+          label: 'Total imputé au mois',
+          value: _blocage != null ? '—' : Fmt.ar(_totalValue),
+          color: t.charge,
+          note: _blocage != null || _qteValue == 1
+              ? null
+              : '${Fmt.num(_prixValue)} × $_qteValue',
         ),
         const SizedBox(height: 14),
         _LabelledField(
@@ -671,6 +809,85 @@ class _ChargeDialogState extends State<_ChargeDialog> {
             style: context.texts.caption.copyWith(height: 1.5),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Contrôleur qui affiche la fin d'un libellé connu en gris, à la suite de ce
+/// qui est tapé — le « texte fantôme » de Copilot ou de la barre de recherche.
+///
+/// La complétion n'entre jamais dans [text] : tant qu'elle n'est pas acceptée,
+/// elle n'existe pas pour le formulaire, qui ne validera donc jamais un libellé
+/// que personne n'a voulu. C'est la différence avec la complétion par sélection
+/// des navigateurs, où le texte proposé fait déjà partie de la valeur.
+class _InlineCompletionController extends TextEditingController {
+  String _suggestion = '';
+
+  /// Libellé complet proposé, ou vide. Retenu en entier plutôt que par son
+  /// suffixe : accepter « fact » doit rendre « Facture JIRAMA », avec sa
+  /// majuscule d'origine, et non « facture JIRAMA ».
+  String get suggestion => _suggestion;
+
+  /// La part restant à taper, celle qui s'affiche en gris.
+  String get reste {
+    if (_suggestion.isEmpty || _suggestion.length <= text.length) return '';
+    return _suggestion.substring(text.length);
+  }
+
+  /// Retient un libellé s'il prolonge vraiment la frappe. Tout le reste — une
+  /// casse qui ne correspond pas, un texte vide, une proposition déjà tapée en
+  /// entier — efface la complétion plutôt que d'en afficher une trompeuse.
+  void propose(String? libelle) {
+    final t = text;
+    final valide =
+        libelle != null &&
+        t.isNotEmpty &&
+        libelle.length > t.length &&
+        libelle.toLowerCase().startsWith(t.toLowerCase());
+    final next = valide ? libelle : '';
+    if (next == _suggestion) return;
+    _suggestion = next;
+    notifyListeners();
+  }
+
+  /// Écrit la proposition dans le champ et place le curseur au bout.
+  void accept() {
+    if (reste.isEmpty) return;
+    final v = _suggestion;
+    _suggestion = '';
+    value = TextEditingValue(
+      text: v,
+      selection: TextSelection.collapsed(offset: v.length),
+    );
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    final base = super.buildTextSpan(
+      context: context,
+      style: style,
+      withComposing: withComposing,
+    );
+    // Rien de gris quand le curseur n'est pas au bout : la complétion se lit
+    // comme une suite du texte, elle n'aurait aucun sens au milieu d'un mot.
+    final auBout =
+        selection.isCollapsed && selection.baseOffset == text.length;
+    if (reste.isEmpty || !auBout) return base;
+    return TextSpan(
+      style: style,
+      children: [
+        base,
+        TextSpan(
+          text: reste,
+          style: (style ?? const TextStyle()).copyWith(
+            color: context.tokens.faint,
+          ),
+        ),
       ],
     );
   }
@@ -815,7 +1032,7 @@ class _ReleveDialogState extends State<_ReleveDialog> {
       subtitle: 'Relevé du ${Fmt.numericDate(widget.date)}',
       accent: t.electric,
       blocage: _blocage,
-      canSave: _blocage == null && _modifie,
+      canSave: _modifie,
       onSave: () => Navigator.of(context).pop(
         ReleveEdit(
           compteur: _compteurValue!,
@@ -872,7 +1089,7 @@ class _ReleveDialogState extends State<_ReleveDialog> {
 
 /// Coquille des deux formulaires : même largeur, même pied, même message
 /// de blocage. Les écrans ne diffèrent que par leurs champs.
-class _EditorShell extends StatelessWidget {
+class _EditorShell extends StatefulWidget {
   const _EditorShell({
     required this.title,
     required this.subtitle,
@@ -887,6 +1104,10 @@ class _EditorShell extends StatelessWidget {
   final String subtitle;
   final Color accent;
   final List<Widget> fields;
+
+  /// Y a-t-il quelque chose à enregistrer ? Ne dit rien de la validité : un
+  /// formulaire fautif garde son bouton actif, c'est le clic qui révèle la
+  /// raison du refus.
   final bool canSave;
   final VoidCallback onSave;
 
@@ -894,9 +1115,29 @@ class _EditorShell extends StatelessWidget {
   final String? blocage;
 
   @override
+  State<_EditorShell> createState() => _EditorShellState();
+}
+
+class _EditorShellState extends State<_EditorShell> {
+  /// L'enregistrement a-t-il déjà été tenté ? Avant cela, rien n'est signalé :
+  /// reprocher un champ vide à quelqu'un qui n'a pas fini de le remplir est
+  /// une remontrance, pas une aide. Une fois la tentative faite, le message
+  /// suit la correction en direct.
+  bool _tente = false;
+
+  void _enregistrer() {
+    if (widget.blocage != null) {
+      setState(() => _tente = true);
+      return;
+    }
+    widget.onSave();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final x = context.texts;
+    final blocage = _tente ? widget.blocage : null;
 
     return AlertDialog(
       backgroundColor: t.surface,
@@ -907,16 +1148,16 @@ class _EditorShell extends StatelessWidget {
       actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
       title: Row(
         children: [
-          KindDot(accent, size: 8),
+          KindDot(widget.accent, size: 8),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: x.cardTitle),
+                Text(widget.title, style: x.cardTitle),
                 const SizedBox(height: 3),
                 Text(
-                  subtitle,
+                  widget.subtitle,
                   style: x.caption,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -933,11 +1174,11 @@ class _EditorShell extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              ...fields,
+              ...widget.fields,
               if (blocage != null) ...[
                 const SizedBox(height: 12),
                 Text(
-                  blocage!,
+                  blocage,
                   style: x.caption.copyWith(color: t.danger, height: 1.5),
                 ),
               ],
@@ -951,7 +1192,9 @@ class _EditorShell extends StatelessWidget {
           child: Text('Annuler', style: TextStyle(color: t.muted)),
         ),
         FilledButton(
-          onPressed: canSave ? onSave : null,
+          // Actif même sur un formulaire fautif : c'est le clic qui
+          // révèle la raison du refus.
+          onPressed: widget.canSave ? _enregistrer : null,
           style: FilledButton.styleFrom(
             backgroundColor: t.accent,
             disabledBackgroundColor: t.surfaceAlt,
@@ -989,11 +1232,16 @@ class _IntegerField extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     this.autofocus = false,
+    this.hint,
   });
 
   final TextEditingController controller;
   final VoidCallback onChanged;
   final bool autofocus;
+
+  /// Valeur retenue quand le champ reste vide, montrée en gris. N'a de sens
+  /// que là où le vide est permis — la quantité d'une charge.
+  final String? hint;
 
   @override
   Widget build(BuildContext context) => TextField(
@@ -1003,6 +1251,10 @@ class _IntegerField extends StatelessWidget {
     textAlign: TextAlign.right,
     keyboardType: TextInputType.number,
     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+    // Toujours une décoration, même sans indication : un `null` ici ne veut
+    // pas dire « celle par défaut » mais « aucune », et le champ perdrait la
+    // bordure, le fond et le padding que lui donne `inputDecorationTheme`.
+    decoration: InputDecoration(hintText: hint),
     onChanged: (_) => onChanged(),
   );
 }

@@ -22,15 +22,24 @@ class Depenses extends Table {
 
 /// Charges fixes du mois — loyer, fournitures, factures.
 ///
-/// Ce n'est pas une dépense : une dépense a un jour, une charge n'en a pas.
-/// Une ligne vaut pour un mois entier, et n'est imputée qu'au cadrage Mois du
-/// tableau de bord. Les montants varient d'un mois à l'autre (une facture
-/// JIRAMA n'est pas un loyer), d'où une ligne par couple (libellé, mois)
-/// plutôt qu'un modèle d'abonnement à montant unique.
+/// Ce n'est pas une dépense : une dépense tombe un jour donné, une charge vaut
+/// pour un mois entier et n'est imputée qu'au cadrage Mois du tableau de bord.
+/// Les montants varient d'un mois à l'autre (une facture JIRAMA n'est pas un
+/// loyer), d'où une ligne par couple (libellé, mois) plutôt qu'un modèle
+/// d'abonnement à montant unique.
 class Charges extends Table {
   TextColumn get idCharge => text()();
   TextColumn get libelle => text()();
-  IntColumn get montant => integer()();
+
+  /// Prix d'une unité. Le total de la ligne vaut `prixUnitaire * quantite` :
+  /// une charge n'est pas toujours un montant nu — trois ramettes ou deux
+  /// bidons se saisissent au prix unitaire, comme une opération.
+  IntColumn get prixUnitaire => integer()();
+
+  /// Nombre d'unités. Vaut 1 pour un loyer ou une facture, qui ne se comptent
+  /// pas. Le défaut est une constante, donc identique que la colonne sorte
+  /// d'un CREATE ou d'un ALTER — contrairement au piège de `dateEnregistrement`.
+  IntColumn get quantite => integer().withDefault(const Constant(1))();
 
   /// Premier jour du mois d'imputation, à 00:00 — voir `normalizeMois`.
   /// C'est lui, et lui seul, qui décide du cadrage où la charge est comptée.
@@ -140,7 +149,7 @@ class AppDatabase extends _$AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   @override
-  int get schemaVersion => 12; // Increment schema version
+  int get schemaVersion => 13; // Increment schema version
 
   @override
   MigrationStrategy get migration {
@@ -155,7 +164,7 @@ class AppDatabase extends _$AppDatabase {
         // `createAll` laisse intacte une table déjà là.
         await m.createAll();
 
-        // Les deux pas suivants ne concernent QUE les bases où `Charges`
+        // Les pas suivants ne concernent QUE les bases où `Charges`
         // existait déjà : venant d'avant la v10, la table sort de `createAll`
         // avec toutes ses colonnes, et les rajouter lèverait « duplicate
         // column name ». D'où des conditions sur des versions précises, et non
@@ -183,6 +192,18 @@ class AppDatabase extends _$AppDatabase {
         if (from == 10 || from == 11) {
           await m.database.customStatement(
             'ALTER TABLE charges ADD COLUMN categorie TEXT NULL',
+          );
+        }
+
+        // v12 -> v13 : la quantite, et `montant` qui devient `prix_unitaire`.
+        // Le DEFAULT 1 est constant, donc accepte par ALTER TABLE, et laisse
+        // les lignes existantes a leur total d'origine.
+        if (from >= 10 && from < 13) {
+          await m.database.customStatement(
+            'ALTER TABLE charges ADD COLUMN quantite INTEGER NOT NULL DEFAULT 1',
+          );
+          await m.database.customStatement(
+            'ALTER TABLE charges RENAME COLUMN montant TO prix_unitaire',
           );
         }
       },

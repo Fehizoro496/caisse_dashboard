@@ -197,20 +197,60 @@ class PeriodTotals {
   );
 }
 
+/// Un libellé déjà employé, avec ce qu'il valait la dernière fois.
+///
+/// Sert la complétion du formulaire de charge : accepter une proposition
+/// reprend son prix, sa quantité et sa catégorie, plutôt que de laisser tout
+/// retaper pour une ligne qu'on reconduit chaque mois.
+class ChargeSuggestion {
+  const ChargeSuggestion({
+    required this.libelle,
+    this.prixUnitaire,
+    this.quantite = 1,
+    this.categorie,
+  });
+
+  final String libelle;
+
+  /// Dernier prix connu, ou `null` pour un libellé dont on ne sait rien.
+  final int? prixUnitaire;
+  final int quantite;
+
+  /// Catégorie choisie la dernière fois. `null` laisse jouer la déduction.
+  final String? categorie;
+
+  /// La catégorie à montrer dans la liste : le choix passé, sinon la déduction.
+  String get categorieEffective => CategoryRules.resolveCharge(categorie, libelle);
+}
+
 /// Une charge du mois, projetée depuis la table `Charges`.
 class ChargeMensuelle {
   const ChargeMensuelle({
     required this.id,
     required this.libelle,
-    required this.montant,
+    required this.prixUnitaire,
     required this.mois,
     required this.dateEnregistrement,
+    this.quantite = 1,
     this.categorie,
   });
 
   final String id;
   final String libelle;
-  final int montant;
+
+  /// Prix d'une unité. Le total de la ligne est [montant].
+  final int prixUnitaire;
+
+  /// Nombre d'unités — 1 pour un loyer ou une facture, qui ne se comptent pas.
+  final int quantite;
+
+  /// Ce que la ligne coûte réellement. C'est cette valeur, et non le prix
+  /// unitaire, qui entre dans les totaux et le solde du mois.
+  int get montant => prixUnitaire * quantite;
+
+  /// Vrai quand la quantité mérite d'être montrée : à un exemplaire, « ×1 »
+  /// n'apprend rien et alourdit la ligne.
+  bool get multiple => quantite > 1;
 
   /// Catégorie choisie à la saisie, ou `null` pour une charge antérieure au
   /// choix explicite. Passer par [categorieEffective] plutôt que par ce champ.

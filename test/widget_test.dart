@@ -110,6 +110,29 @@ void main() {
     });
   });
 
+  group('ChargeMensuelle', () {
+    ChargeMensuelle charge({required int pu, required int qte}) =>
+        ChargeMensuelle(
+          id: 'c',
+          libelle: 'Ramette A4',
+          prixUnitaire: pu,
+          quantite: qte,
+          mois: DateTime(2026, 8),
+          dateEnregistrement: DateTime(2026, 8, 3),
+        );
+
+    test('le total multiplie le prix unitaire par la quantité', () {
+      expect(charge(pu: 18500, qte: 12).montant, 222000);
+    });
+
+    test('une charge sans quantité vaut son prix unitaire', () {
+      // Le cas du loyer, et celui de toutes les lignes migrées depuis la v12.
+      expect(charge(pu: 350000, qte: 1).montant, 350000);
+      expect(charge(pu: 350000, qte: 1).multiple, isFalse);
+      expect(charge(pu: 18500, qte: 12).multiple, isTrue);
+    });
+  });
+
   group('PeriodTotals', () {
     test('le solde net retire dépenses et prélèvements', () {
       const t = PeriodTotals(

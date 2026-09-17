@@ -308,10 +308,14 @@ class CaisseController extends GetxController {
   /// Le résultat ignore [chargesIncluses] : la bascule décide de l'imputation
   /// au solde, pas de l'existence des charges, que la carte affiche même
   /// quand elles sont exclues.
+  /// Ce que coûte une ligne : le prix unitaire ne suffit plus depuis qu'une
+  /// charge peut porter une quantité.
+  static int _totalCharge(Charge c) => c.prixUnitaire * c.quantite;
+
   List<Charge> _chargesIn(DateTime start, DateTime end, Period p) {
     if (p != Period.month) return const [];
     return _charges.where((c) => _within(c.mois, start, end)).toList()
-      ..sort((a, b) => b.montant.compareTo(a.montant));
+      ..sort((a, b) => _totalCharge(b).compareTo(_totalCharge(a)));
   }
 
   PeriodTotals _totals(DateTime start, DateTime end, Period p) {
@@ -345,7 +349,9 @@ class CaisseController extends GetxController {
       nbPrelevements: nbPrel,
       // Exclues, les charges sortent du solde mais restent lisibles sur la
       // carte, que `DashboardData.chargesDuMois` alimente séparément.
-      charges: chargesIncluses ? chs.fold<int>(0, (s, c) => s + c.montant) : 0,
+      charges: chargesIncluses
+          ? chs.fold<int>(0, (s, c) => s + _totalCharge(c))
+          : 0,
       nbCharges: chargesIncluses ? chs.length : 0,
     );
   }
@@ -372,9 +378,11 @@ class CaisseController extends GetxController {
       chargesDuMois: [
         for (final c in charges)
           DepenseRow(
-            libelle: c.libelle,
+            // « Ramette A4 ×3 » : sans la quantité, un total de 55 500 face à
+            // un prix unitaire de 18 500 passerait pour une faute de frappe.
+            libelle: c.quantite > 1 ? '${c.libelle} ×${c.quantite}' : c.libelle,
             categorie: CategoryRules.resolveCharge(c.categorie, c.libelle),
-            montant: c.montant,
+            montant: _totalCharge(c),
           ),
       ],
       chargesIncluses: chargesIncluses,
@@ -477,7 +485,7 @@ class CaisseController extends GetxController {
     if (chargesIncluses) {
       for (final ch in charges) {
         final c = CategoryRules.resolveCharge(ch.categorie, ch.libelle);
-        byCat[c] = (byCat[c] ?? 0) + ch.montant;
+        byCat[c] = (byCat[c] ?? 0) + _totalCharge(ch);
       }
     }
     final entries = byCat.entries.map((e) => (e.key, e.value)).toList()
@@ -576,6 +584,69 @@ class CaisseController extends GetxController {
   // écriture du produit. Une charge vaut pour un mois entier — elle n'a donc
   // ni jour ni heure, contrairement à tout le reste de la base.
 
+  /// Libellés déjà employés, avec ce qu'ils valaient la dernière fois.
+  ///
+  /// Les charges d'abord, classées par fréquence : on reconduit chaque mois
+  /// les mêmes lignes, et ce sont donc les propositions les plus sûres. Les
+  /// libellés de dépenses suivent, sans doublon — sans eux, la toute première
+  /// charge se saisirait devant une liste vide.
+  List<ChargeSuggestion> get suggestionsCharges {
+    // La plus récente de chaque libellé porte les valeurs à reprendre : c'est
+    // le dernier loyer connu qu'on veut proposer, pas celui d'il y a deux ans.
+    final derniere = <String, Charge>{};
+    final freq = <String, int>{};
+    for (final c in _charges) {
+      if (c.libelle.trim().isEmpty) continue;
+      final k = c.libelle.trim().toLowerCase();
+      freq[k] = (freq[k] ?? 0) + 1;
+      final d = derniere[k];
+      if (d == null || _plusRecente(c, d)) derniere[k] = c;
+    }
+
+    // Une dépense n'a ni quantité ni catégorie choisie, mais son montant fait
+    // un prix unitaire honnête faute de mieux.
+    final vues = <String, Depense>{};
+    final freqDep = <String, int>{};
+    for (final d in _depenses) {
+      if (d.libelle.trim().isEmpty) continue;
+      final k = d.libelle.trim().toLowerCase();
+      if (derniere.containsKey(k)) continue;
+      freqDep[k] = (freqDep[k] ?? 0) + 1;
+      final p = vues[k];
+      if (p == null || d.dateDepense.isAfter(p.dateDepense)) vues[k] = d;
+    }
+
+    List<String> parFrequence(Iterable<String> cles, Map<String, int> f) =>
+        cles.toList()..sort((a, b) {
+          final n = f[b]!.compareTo(f[a]!);
+          return n != 0 ? n : a.compareTo(b);
+        });
+
+    return [
+      for (final k in parFrequence(derniere.keys, freq))
+        ChargeSuggestion(
+          libelle: derniere[k]!.libelle,
+          prixUnitaire: derniere[k]!.prixUnitaire,
+          quantite: derniere[k]!.quantite,
+          categorie: derniere[k]!.categorie,
+        ),
+      for (final k in parFrequence(vues.keys, freqDep))
+        ChargeSuggestion(
+          libelle: vues[k]!.libelle,
+          prixUnitaire: vues[k]!.montant,
+        ),
+    ];
+  }
+
+  /// Le mois d'imputation prime sur la date de saisie : c'est lui qui dit à
+  /// quelle période la ligne appartient.
+  static bool _plusRecente(Charge a, Charge b) {
+    final m = a.mois.compareTo(b.mois);
+    return m != 0
+        ? m > 0
+        : a.dateEnregistrement.isAfter(b.dateEnregistrement);
+  }
+
   /// Charges du mois sélectionné, de la plus lourde à la plus légère.
   List<ChargeMensuelle> get chargesDuMois {
     final list =
@@ -586,15 +657,16 @@ class CaisseController extends GetxController {
                   c.mois.month == moisCharges.month,
             )
             .toList()
-          ..sort((a, b) => b.montant.compareTo(a.montant));
+          ..sort((a, b) => _totalCharge(b).compareTo(_totalCharge(a)));
     return [
       for (final c in list)
         ChargeMensuelle(
           id: c.idCharge,
           libelle: c.libelle,
-          montant: c.montant,
+          prixUnitaire: c.prixUnitaire,
           mois: c.mois,
           dateEnregistrement: c.dateEnregistrement,
+          quantite: c.quantite,
           categorie: c.categorie,
         ),
     ];
@@ -612,27 +684,33 @@ class CaisseController extends GetxController {
         _charges
             .where((c) => c.mois.year == prev.year && c.mois.month == prev.month)
             .toList()
-          ..sort((a, b) => b.montant.compareTo(a.montant));
+          ..sort((a, b) => _totalCharge(b).compareTo(_totalCharge(a)));
     return [
       for (final c in list)
         ChargeMensuelle(
           id: c.idCharge,
           libelle: c.libelle,
-          montant: c.montant,
+          prixUnitaire: c.prixUnitaire,
           mois: c.mois,
           dateEnregistrement: c.dateEnregistrement,
+          quantite: c.quantite,
           categorie: c.categorie,
         ),
     ];
   }
 
   Future<void> addCharge(BuildContext context) async {
-    final edit = await showChargeEditor(context, mois: moisCharges);
+    final edit = await showChargeEditor(
+      context,
+      mois: moisCharges,
+      suggestions: suggestionsCharges,
+    );
     if (edit == null) return;
     try {
       await _db.saveCharge(
         libelle: edit.libelle,
-        montant: edit.montant,
+        prixUnitaire: edit.prixUnitaire,
+        quantite: edit.quantite,
         mois: edit.mois,
         dateEnregistrement: edit.dateEnregistrement,
         categorie: edit.categorie,
@@ -650,17 +728,20 @@ class CaisseController extends GetxController {
     final edit = await showChargeEditor(
       context,
       libelle: c.libelle,
-      montant: c.montant,
+      prixUnitaire: c.prixUnitaire,
+      quantite: c.quantite,
       mois: c.mois,
       dateEnregistrement: c.dateEnregistrement,
       categorie: c.categorie,
+      suggestions: suggestionsCharges,
     );
     if (edit == null) return;
     try {
       final touched = await _db.updateCharge(
         id: c.id,
         libelle: edit.libelle,
-        montant: edit.montant,
+        prixUnitaire: edit.prixUnitaire,
+        quantite: edit.quantite,
         mois: edit.mois,
         dateEnregistrement: edit.dateEnregistrement,
         categorie: edit.categorie,
@@ -707,7 +788,8 @@ class CaisseController extends GetxController {
         // la ligne du mois précédent, choix de catégorie compris.
         await _db.saveCharge(
           libelle: c.libelle,
-          montant: c.montant,
+          prixUnitaire: c.prixUnitaire,
+          quantite: c.quantite,
           mois: moisCharges,
           categorie: c.categorie,
         );
