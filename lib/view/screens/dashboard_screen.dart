@@ -4,6 +4,7 @@ import 'package:caisse_dashboard/core/theme/app_tokens.dart';
 import 'package:caisse_dashboard/view/widgets/app_shell.dart';
 import 'package:caisse_dashboard/view/widgets/panel.dart';
 import 'package:caisse_dashboard/view/widgets/stat_cards.dart';
+import 'package:caisse_dashboard/view/widgets/prestations_pie_chart.dart';
 import 'package:flutter/material.dart';
 
 /// Données prêtes à afficher pour une période. Le contrôleur les calcule ;
@@ -34,7 +35,7 @@ class DashboardData {
   /// Les charges pèsent-elles sur [PeriodTotals.soldeNet] ?
   final bool chargesIncluses;
 
-  /// 7 jours / 8 semaines / 6 mois selon le cadrage.
+  /// Les 12 mois de l'année de la date courante, quel que soit le cadrage.
   final List<BarGroup> trend;
   final List<(String, int)> repartition;
 
@@ -179,12 +180,15 @@ class DashboardScreen extends StatelessWidget {
     ),
   );
 
-  /// Hauteurs plancher des trois bandes. En dessous de leur somme, la page
-  /// défile au lieu d'écraser les tableaux. La bande de tête, elle, n'a pas de
-  /// hauteur imposée : elle se mesure (voir [_TotalsRow]), sinon un texte
-  /// agrandi par le système la ferait déborder de quelques pixels.
-  static const _tablesMinHeight = 260.0;
+  /// Hauteurs des bandes, les mêmes aux trois cadrages : tableaux, anneau et
+  /// répartition, puis courbes. Leur somme dépasse la fenêtre, donc la page
+  /// défile — c'est ce qui laisse aux tableaux sept ou huit lignes. La bande
+  /// de tête, elle, n'a pas de hauteur imposée : elle se mesure (voir
+  /// [_TotalsRow]), sinon un texte agrandi par le système la ferait déborder
+  /// de quelques pixels.
+  static const _tablesHeight = 380.0;
   static const _chartsHeight = 258.0;
+  static const _trendHeight = 236.0;
 
   @override
   Widget build(BuildContext context) {
@@ -192,54 +196,37 @@ class DashboardScreen extends StatelessWidget {
       loading: loading,
       error: error,
       onRetry: onRetry,
-      child: LayoutBuilder(
-        builder: (context, box) {
-          // Estimation, seulement pour décider du passage en défilement :
-          // les deux rangées réelles s'ajustent toutes seules à leur contenu.
-          final scale = MediaQuery.textScalerOf(context).scale(1);
-          final totalsHeight = 220.0 * scale;
-          final needed =
-              totalsHeight + 12 + _tablesMinHeight + 12 + _chartsHeight;
-          final short = box.maxHeight < needed;
+      child: PrestationsScope(
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final head = _TotalsRow(
+              totals: data.totals,
+              period: period,
+              periodWord: _periodWord,
+              delta: _delta,
+              width: box.maxWidth,
+              onOpenSection: onOpenSection,
+              charges: _showCharges ? data.totalCharges : null,
+              nbCharges: data.chargesDuMois.length,
+              chargesIncluses: data.chargesIncluses,
+            );
 
-          final head = _TotalsRow(
-            totals: data.totals,
-            period: period,
-            periodWord: _periodWord,
-            delta: _delta,
-            width: box.maxWidth,
-            onOpenSection: onOpenSection,
-            charges: _showCharges ? data.totalCharges : null,
-            nbCharges: data.chargesDuMois.length,
-            chargesIncluses: data.chargesIncluses,
-          );
-
-          if (short) {
             return SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   head,
                   const SizedBox(height: 12),
-                  SizedBox(height: _tablesMinHeight, child: _tables()),
+                  SizedBox(height: _tablesHeight, child: _tables()),
                   const SizedBox(height: 12),
                   SizedBox(height: _chartsHeight, child: _charts(context)),
+                  const SizedBox(height: 12),
+                  SizedBox(height: _trendHeight, child: _trendPanel(context)),
                 ],
               ),
             );
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              head,
-              const SizedBox(height: 12),
-              Expanded(child: _tables()),
-              const SizedBox(height: 12),
-              SizedBox(height: _chartsHeight, child: _charts(context)),
-            ],
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -249,7 +236,13 @@ class DashboardScreen extends StatelessWidget {
     children: [
       Expanded(
         flex: 155,
-        child: _OperationsPanel(data: data, period: period),
+        // Le tableau sert de légende à l'anneau. Au jour, il liste les
+        // opérations une à une, avec leur heure.
+        child: PrestationsPanel(
+          operations: data.operations,
+          totalEntrant: data.totals.entrant,
+          byLine: period == Period.day,
+        ),
       ),
       const SizedBox(width: 12),
       Expanded(flex: 100, child: _DepensesPanel(data: data)),
@@ -257,58 +250,13 @@ class DashboardScreen extends StatelessWidget {
   );
 
   Widget _charts(BuildContext context) {
-    final t = context.tokens;
     final x = context.texts;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           flex: 155,
-          child: Panel(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                LayoutBuilder(
-                  builder: (context, box) => Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          switch (period) {
-                            Period.day =>
-                              '7 derniers jours · entrants vs prélèvements',
-                            Period.week =>
-                              '8 dernières semaines · entrants vs prélèvements',
-                            Period.month =>
-                              '6 derniers mois · entrants vs prélèvements',
-                          },
-                          style: x.cardTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      // Carte étroite : le titre prime sur la légende, que les
-                      // couleurs des barres rendent de toute façon lisible.
-                      if (box.maxWidth > 420) ...[
-                        _Legend(color: t.income, label: 'Entrants'),
-                        const SizedBox(width: 14),
-                        _Legend(color: t.drawing, label: 'Prélèvements'),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: GroupedBarChart(
-                    groups: data.trend,
-                    primaryColor: t.income,
-                    secondaryColor: t.drawing,
-                    height: double.infinity,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          child: PrestationsPieChart(operations: data.operations),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -333,6 +281,50 @@ class DashboardScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _trendPanel(BuildContext context) {
+    final t = context.tokens;
+    final x = context.texts;
+    return Panel(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, box) => Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Année ${date.year} · entrants vs prélèvements',
+                    style: x.cardTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                // Carte étroite : le titre prime sur la légende, que les
+                // couleurs des barres rendent de toute façon lisible.
+                if (box.maxWidth > 420) ...[
+                  _Legend(color: t.income, label: 'Entrants'),
+                  const SizedBox(width: 14),
+                  _Legend(color: t.drawing, label: 'Prélèvements'),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: TrendLineChart(
+              groups: data.trend,
+              primaryColor: t.income,
+              secondaryColor: t.drawing,
+              primaryLabel: 'Entrants',
+              secondaryLabel: 'Prélèvements',
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -573,69 +565,6 @@ class _TotalsRow extends StatelessWidget {
         constraints: BoxConstraints(minHeight: minHeight),
         child: IntrinsicHeight(child: child),
       );
-}
-
-class _OperationsPanel extends StatelessWidget {
-  const _OperationsPanel({required this.data, required this.period});
-  final DashboardData data;
-  final Period period;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final x = context.texts;
-    final day = period == Period.day;
-    final cols = [
-      const Col('Prestation', flex: 3),
-      const Col('P.U.', flex: 1, numeric: true),
-      const Col('Qté', flex: 1, numeric: true),
-      const Col('Total', flex: 2, numeric: true),
-      Col(day ? 'Heure' : 'Lignes', flex: 1, numeric: true),
-    ];
-
-    return Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          PanelHeader(
-            title: day ? 'Opérations du jour' : 'Prestations agrégées',
-            meta: '${data.operations.length} ${day ? 'lignes' : 'prestations'}',
-          ),
-          TableHeaderRow(cols: cols),
-          Expanded(
-            child: data.operations.isEmpty
-                ? const EmptyState(title: 'Aucune opération sur cette période.')
-                : ListView.builder(
-                    itemCount: data.operations.length,
-                    itemBuilder: (context, i) {
-                      final o = data.operations[i];
-                      return DataRow2(
-                        cols: cols,
-                        cells: [
-                          Text(
-                            o.nom,
-                            style: x.body,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(Fmt.num(o.prixUnitaire), style: x.monoMuted),
-                          Text('×${o.quantite}', style: x.monoMuted),
-                          Text(Fmt.num(o.total), style: x.monoBody),
-                          Text(o.meta, style: x.monoFaint),
-                        ],
-                      );
-                    },
-                  ),
-          ),
-          TotalBar(
-            label: 'Total entrant',
-            value: Fmt.ar(data.totals.entrant),
-            valueColor: t.income,
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// Une entrée du panneau : soit un intertitre de section, soit une ligne.

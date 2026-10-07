@@ -397,7 +397,7 @@ class CaisseController extends GetxController {
                   meta: Fmt.hour(o.dateOperation),
                 ),
             ]
-          : _aggregate(ops),
+          : aggregateOperations(ops),
       depenses: [
         for (final d in deps)
           DepenseRow(
@@ -406,17 +406,21 @@ class CaisseController extends GetxController {
             montant: d.montant,
           ),
       ],
-      trend: _trend(),
+      trend: _yearTrend(),
       repartition: _repartition(deps, charges),
     );
   }
 
   /// Vue Semaine / Mois : une ligne par prestation, quantités cumulées.
-  List<OperationRow> _aggregate(List<Operation> ops) {
-    final byName = <String, ({int pu, int qte, int total, int lignes})>{};
+  static List<OperationRow> aggregateOperations(List<Operation> ops) {
+    final byName =
+        <String, ({String nom, int pu, int qte, int total, int lignes})>{};
     for (final o in ops) {
-      final cur = byName[o.nomOperation];
-      byName[o.nomOperation] = (
+      final nom = o.nomOperation.trim();
+      final key = nom.toLowerCase();
+      final cur = byName[key];
+      byName[key] = (
+        nom: cur?.nom ?? nom,
         pu: o.prixOperation,
         qte: (cur?.qte ?? 0) + o.quantiteOperation,
         total: (cur?.total ?? 0) + o.prixOperation * o.quantiteOperation,
@@ -426,7 +430,7 @@ class CaisseController extends GetxController {
     final rows = [
       for (final e in byName.entries)
         OperationRow(
-          nom: e.key,
+          nom: e.value.nom,
           prixUnitaire: e.value.pu,
           quantite: e.value.qte,
           total: e.value.total,
@@ -436,36 +440,29 @@ class CaisseController extends GetxController {
     return rows;
   }
 
-  /// 7 jours / 8 semaines / 6 mois se terminant sur la période courante.
-  List<BarGroup> _trend() {
-    final count = switch (period) {
-      Period.day => 7,
-      Period.week => 8,
-      Period.month => 6,
-    };
-    final groups = <BarGroup>[];
-    for (var i = count - 1; i >= 0; i--) {
-      final anchor = switch (period) {
-        Period.day => date.subtract(Duration(days: i)),
-        Period.week => date.subtract(Duration(days: 7 * i)),
-        Period.month => DateTime(date.year, date.month - i, 1),
-      };
-      final (s, e) = _bounds(anchor, period);
-      final t = _totals(s, e, period);
-      groups.add(
-        BarGroup(
-          label: switch (period) {
-            Period.day => Fmt.shortDate(anchor),
-            Period.week => Fmt.shortDate(s),
-            Period.month => _shortMonth(anchor),
-          },
-          primary: t.entrant,
-          secondary: t.prelevement,
-          highlighted: i == 0,
-        ),
-      );
-    }
-    return groups;
+  /// L'année civile de [date], mois par mois — la même courbe aux trois
+  /// cadrages : elle situe le jour, la semaine ou le mois consulté dans son
+  /// année, au lieu de changer d'échelle avec lui. Les mois au-delà du dernier
+  /// enregistrement sont marqués « à venir » plutôt que comptés à zéro : une
+  /// courbe qui plonge en fin d'année se lirait comme une chute d'activité.
+  List<BarGroup> _yearTrend() {
+    final last = DateTime(lastRecordDate.year, lastRecordDate.month);
+    return [
+      for (var m = 1; m <= 12; m++)
+        () {
+          final anchor = DateTime(date.year, m);
+          final pending = anchor.isAfter(last);
+          final (s, e) = _bounds(anchor, Period.month);
+          final t = pending ? null : _totals(s, e, Period.month);
+          return BarGroup(
+            label: _shortMonth(anchor),
+            primary: t?.entrant ?? 0,
+            secondary: t?.prelevement ?? 0,
+            highlighted: m == date.month,
+            pending: pending,
+          );
+        }(),
+    ];
   }
 
   /// « Janv », « Mai » — assez court pour tenir sous une barre.

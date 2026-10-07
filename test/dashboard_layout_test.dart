@@ -2,7 +2,10 @@ import 'package:caisse_dashboard/core/format.dart';
 import 'package:caisse_dashboard/core/models.dart';
 import 'package:caisse_dashboard/core/theme/app_tokens.dart';
 import 'package:caisse_dashboard/view/screens/dashboard_screen.dart';
+import 'package:caisse_dashboard/view/widgets/panel.dart';
 import 'package:caisse_dashboard/view/widgets/stat_cards.dart';
+import 'package:caisse_dashboard/view/widgets/prestations_pie_chart.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -274,6 +277,183 @@ void main() {
     });
   }
 
+  testWidgets('prestations hebdomadaires : chaque ligne porte sa part', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 650);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(harness(1.5, period: Period.week));
+    await tester.ensureVisible(find.byType(PrestationsPanel));
+    await tester.pumpAndSettle();
+    // 12 lignes de 900 Ar : chacune a sa part, rien n'est replié.
+    expect(find.text('8,3 %'), findsWidgets);
+    expect(find.textContaining('Autres'), findsNothing);
+    // L'historique passe en courbes, sur sa propre bande.
+    expect(find.byType(TrendLineChart), findsOneWidget);
+    expect(find.byType(GroupedBarChart), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('au mois, l’anneau prend la place de l’historique, qui '
+      'descend en courbes', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      harness(1, period: Period.month, content: dataMois),
+    );
+    await tester.pump();
+    expect(find.byType(PrestationsPanel), findsOneWidget);
+    expect(find.text('Montant'), findsOneWidget);
+    expect(find.text('Quantité'), findsOneWidget);
+    expect(find.textContaining('Année 2026'), findsOneWidget);
+    expect(find.byType(GroupedBarChart), findsNothing);
+    // Tableau, puis anneau à gauche de la répartition, puis courbes.
+    final table = tester.getRect(find.byType(PrestationsPanel));
+    final pie = tester.getRect(find.byType(PrestationsPieChart));
+    final repartition = tester.getRect(find.byType(CategoryBreakdown));
+    final trend = tester.getRect(find.byType(TrendLineChart));
+    expect(table.bottom, lessThan(pie.top));
+    expect(pie.right, lessThan(repartition.left));
+    expect(pie.bottom, lessThan(trend.top));
+    // Pleine largeur : la courbe déborde sous la répartition.
+    expect(trend.right, greaterThan(repartition.left));
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final period in Period.values) {
+    testWidgets('${period.label} : même disposition qu’au mois', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(harness(1, period: period));
+      await tester.pump();
+      // Tableau, puis anneau à gauche de la répartition, puis courbes.
+      final table = tester.getRect(find.byType(PrestationsPanel));
+      final pie = tester.getRect(find.byType(PrestationsPieChart));
+      final repartition = tester.getRect(find.byType(CategoryBreakdown));
+      final trend = tester.getRect(find.byType(TrendLineChart));
+      expect(table.bottom, lessThan(pie.top));
+      expect(pie.right, lessThan(repartition.left));
+      expect(pie.bottom, lessThan(trend.top));
+      expect(find.byType(GroupedBarChart), findsNothing);
+      expect(find.textContaining('Année 2026'), findsOneWidget);
+      // Seule différence entre cadrages : la carte Charges du mois.
+      expect(
+        find.byType(TotalCard),
+        findsNWidgets(period == Period.month ? 4 : 3),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('au jour, les lignes d’une même prestation font une seule part', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(harness(1));
+    await tester.pump();
+    // 12 opérations « Photocopie A4 N&B » : le tableau les garde une à une,
+    // avec leur heure et leur part ; l'anneau n'en fait qu'une.
+    expect(find.text('Opérations du jour'), findsOneWidget);
+    expect(find.text('HEURE'), findsOneWidget);
+    expect(find.text('07h36'), findsWidgets);
+    expect(find.text('8,3 %'), findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byType(PrestationsPieChart),
+        matching: find.text('100 %'),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('courbes : le survol affiche les deux valeurs de la période', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 300);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(brightness: Brightness.light),
+        home: Scaffold(
+          body: TrendLineChart(
+            groups: data.trend,
+            primaryColor: AppTokens.light.income,
+            secondaryColor: AppTokens.light.drawing,
+            primaryLabel: 'Entrants',
+            secondaryLabel: 'Prélèvements',
+          ),
+        ),
+      ),
+    );
+    expect(find.text(Fmt.ar(125000)), findsNothing);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    // Tout à gauche : la première période, « 15 août ».
+    await mouse.moveTo(const Offset(60, 150));
+    await tester.pump();
+    expect(find.text(Fmt.ar(125000)), findsOneWidget);
+    expect(find.text(Fmt.ar(40000)), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('courbes : un mois à venir n’a ni point ni infobulle', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 300);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(brightness: Brightness.light),
+        home: Scaffold(
+          body: TrendLineChart(
+            groups: const [
+              BarGroup(label: 'Janv', primary: 125000, secondary: 40000),
+              BarGroup(label: 'Févr', primary: 0, secondary: 0, pending: true),
+            ],
+            primaryColor: AppTokens.light.income,
+            secondaryColor: AppTokens.light.drawing,
+            primaryLabel: 'Entrants',
+            secondaryLabel: 'Prélèvements',
+          ),
+        ),
+      ),
+    );
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(const Offset(760, 150));
+    await tester.pump();
+    expect(find.text('Entrants  '), findsNothing);
+    await mouse.moveTo(const Offset(60, 150));
+    await tester.pump();
+    expect(find.text(Fmt.ar(125000)), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('prestations vides sans erreur de calcul', (tester) async {
+    tester.view.physicalSize = const Size(900, 650);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      harness(1, period: Period.month, content: DashboardData.empty),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Aucune opération sur cette période.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('sur deux rangs, la carte dépasse le plancher de la bande', (
     tester,
   ) async {
@@ -305,5 +485,80 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(large, greaterThan(small));
+  });
+
+  testWidgets('prestations : la bascule passe du montant à la quantité', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(700, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const operations = [
+      OperationRow(
+        nom: 'Reliure',
+        prixUnitaire: 3000,
+        quantite: 1,
+        total: 3000,
+        meta: '1',
+      ),
+      OperationRow(
+        nom: 'Photocopie',
+        prixUnitaire: 100,
+        quantite: 9,
+        total: 900,
+        meta: '4',
+      ),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(brightness: Brightness.light),
+        home: const Scaffold(
+          body: PrestationsScope(
+            child: Column(
+              children: [
+                Expanded(
+                  child: PrestationsPanel(
+                    totalEntrant: 3900,
+                    operations: operations,
+                  ),
+                ),
+                SizedBox(
+                  height: 258,
+                  child: PrestationsPieChart(operations: operations),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Finder row(String nom) =>
+        find.ancestor(of: find.text(nom), matching: find.byType(DataRow2));
+    double y(String nom) => tester.getTopLeft(row(nom)).dy;
+    Color dot(String nom) => tester
+        .widget<KindDot>(
+          find.descendant(of: row(nom), matching: find.byType(KindDot)),
+        )
+        .color;
+
+    // En montant, la reliure domine : 3 000 Ar sur 3 900. La part se lit dans
+    // le tableau comme autour de l'anneau.
+    expect(find.text('77 %'), findsNWidgets(2));
+    expect(find.text(Fmt.num(3900)), findsOneWidget);
+    expect(y('Reliure'), lessThan(y('Photocopie')));
+    final couleurReliure = dot('Reliure');
+
+    await tester.tap(find.text('Quantité'));
+    await tester.pumpAndSettle();
+
+    // En quantité, c'est l'inverse : 9 unités sur 10. Le tableau suit la
+    // bascule de l'anneau.
+    expect(find.text('90 %'), findsNWidgets(2));
+    expect(find.text('unités'), findsOneWidget);
+    expect(y('Photocopie'), lessThan(y('Reliure')));
+    // La couleur suit la prestation, pas son rang.
+    expect(dot('Reliure'), couleurReliure);
+    expect(tester.takeException(), isNull);
   });
 }
