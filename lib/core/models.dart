@@ -38,6 +38,7 @@ class CategoryRules {
   static const Map<String, List<String>> _rules = {
     'Papier': ['ramette', 'papier', 'a4', 'a3'],
     'Consommables': [
+      'taratasy',
       'toner',
       'cartouche',
       'encre',
