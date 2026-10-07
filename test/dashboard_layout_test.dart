@@ -116,8 +116,8 @@ void main() {
   );
 
   const sizes = [
-    // Sous 1180 px de large, la tête passe sur deux rangs : c'est ce mode,
-    // atteint en redimensionnant la fenêtre, qui débordait.
+    // La tête tient toujours sur deux rangs ; c'est en fenêtre étroite que
+    // ses cartes sont le plus serrées, donc qu'elles débordaient.
     Size(900, 650),
     Size(1024, 700),
     Size(1280, 720),
@@ -129,37 +129,31 @@ void main() {
 
   for (final size in sizes) {
     for (final scale in textScales) {
-      testWidgets(
-        'dashboard ${size.width.toInt()}x${size.height.toInt()} · '
-        'texte ×$scale',
-        (tester) async {
-          tester.view.physicalSize = size;
-          tester.view.devicePixelRatio = 1;
-          addTearDown(tester.view.reset);
+      testWidgets('dashboard ${size.width.toInt()}x${size.height.toInt()} · '
+          'texte ×$scale', (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
 
-          await tester.pumpWidget(harness(scale));
-          await tester.pump();
+        await tester.pumpWidget(harness(scale));
+        await tester.pump();
 
-          expect(tester.takeException(), isNull);
-        },
-      );
+        expect(tester.takeException(), isNull);
+      });
 
-      testWidgets(
-        'dashboard mois + charges ${size.width.toInt()}x'
-        '${size.height.toInt()} · texte ×$scale',
-        (tester) async {
-          tester.view.physicalSize = size;
-          tester.view.devicePixelRatio = 1;
-          addTearDown(tester.view.reset);
+      testWidgets('dashboard mois + charges ${size.width.toInt()}x'
+          '${size.height.toInt()} · texte ×$scale', (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
 
-          await tester.pumpWidget(
-            harness(scale, period: Period.month, content: dataMois),
-          );
-          await tester.pump();
+        await tester.pumpWidget(
+          harness(scale, period: Period.month, content: dataMois),
+        );
+        await tester.pump();
 
-          expect(tester.takeException(), isNull);
-        },
-      );
+        expect(tester.takeException(), isNull);
+      });
     }
   }
 
@@ -217,10 +211,68 @@ void main() {
     // La carte montre toujours les 480 000 Ar saisis…
     expect(exclues.totalCharges, 480000);
     // …mais le solde ne les retranche plus.
-    expect(exclues.totals.soldeNet, 760200 - 185000 - 90000);
+    expect(tester.widget<SoldeNetCard>(find.byType(SoldeNetCard)).solde, 90000);
     expect(find.text('hors solde net'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'le solde mensuel et sa comparaison utilisent le prélèvement réel',
+    (tester) async {
+      tester.view.physicalSize = const Size(1920, 1080);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        harness(1, period: Period.month, content: dataMois),
+      );
+      final card = tester.widget<SoldeNetCard>(find.byType(SoldeNetCard));
+      expect(card.solde, -390000);
+      expect(card.deltaPercent, -880);
+      expect(card.formula, 'prélèvement saisi − charges');
+    },
+  );
+
+  for (final saisi in [400, 500, 600]) {
+    testWidgets('couleur du rapprochement pour un prélèvement de $saisi', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1920, 1080);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final content = DashboardData(
+        totals: PeriodTotals(
+          entrant: 800,
+          sortant: 300,
+          prelevement: saisi,
+          nbOperations: 1,
+          nbDepenses: 1,
+          nbPrelevements: 1,
+        ),
+        previousTotals: PeriodTotals.empty,
+        operations: const [],
+        depenses: const [],
+        trend: const [],
+        repartition: const [],
+      );
+      await tester.pumpWidget(
+        harness(1, period: Period.month, content: content),
+      );
+      final text = tester.widget<Text>(
+        find.byKey(const ValueKey('ecart-prelevement')),
+      );
+      expect(
+        text.style!.color,
+        saisi >= 500 ? AppTokens.light.success : AppTokens.light.warning,
+      );
+      expect(content.totals.ecartPrelevement, saisi - 500);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('prelevement-calcule')))
+            .data,
+        Fmt.num(500),
+      );
+    });
+  }
 
   testWidgets('sur deux rangs, la carte dépasse le plancher de la bande', (
     tester,

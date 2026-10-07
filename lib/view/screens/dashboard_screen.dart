@@ -144,9 +144,10 @@ class DashboardScreen extends StatelessWidget {
       d.subtract(Duration(days: (d.weekday + 6) % 7));
 
   int? get _delta {
-    final prev = data.previousTotals.soldeNet;
+    final prev = data.previousTotals.soldeNetPour(period);
     if (prev == 0) return null;
-    return ((data.totals.soldeNet - prev) / prev.abs() * 100).round();
+    return ((data.totals.soldeNetPour(period) - prev) / prev.abs() * 100)
+        .round();
   }
 
   DateTime? get _nextDate {
@@ -193,23 +194,20 @@ class DashboardScreen extends StatelessWidget {
       onRetry: onRetry,
       child: LayoutBuilder(
         builder: (context, box) {
-          // Sous ~1180 px les cartes de tête passent sur deux rangs. En Mois,
-          // la carte Charges en ajoute une : le seuil monte d'autant.
-          final tight = box.maxWidth < (_showCharges ? 1400 : 1180);
-
           // Estimation, seulement pour décider du passage en défilement :
-          // la bande réelle s'ajuste toute seule à son contenu.
+          // les deux rangées réelles s'ajustent toutes seules à leur contenu.
           final scale = MediaQuery.textScalerOf(context).scale(1);
-          final totalsHeight = (tight ? 220.0 : 118.0) * scale;
+          final totalsHeight = 220.0 * scale;
           final needed =
               totalsHeight + 12 + _tablesMinHeight + 12 + _chartsHeight;
           final short = box.maxHeight < needed;
 
           final head = _TotalsRow(
             totals: data.totals,
+            period: period,
             periodWord: _periodWord,
             delta: _delta,
-            wrap: tight,
+            width: box.maxWidth,
             onOpenSection: onOpenSection,
             charges: _showCharges ? data.totalCharges : null,
             nbCharges: data.chargesDuMois.length,
@@ -339,12 +337,120 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
+/// Rapprochement du prélèvement : ce qui a été saisi face à ce que la caisse
+/// laisse attendre (entrant − sortant). Même gabarit que [SoldeNetCard], à sa
+/// droite : l'écart en grand, le calcul rappelé dessous. L'état se lit dans
+/// l'étiquette — icône et mot — autant que dans la couleur.
+class _Reconciliation extends StatelessWidget {
+  const _Reconciliation({required this.totals});
+
+  final PeriodTotals totals;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final x = context.texts;
+    final ecart = totals.ecartPrelevement;
+    final ok = ecart >= 0;
+    final color = ok ? t.success : t.warning;
+
+    return Tooltip(
+      message: 'Calculé = entrant − sortant · écart = saisi − calculé',
+      waitDuration: const Duration(milliseconds: 400),
+      child: Panel(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'ÉCART DE PRÉLÈVEMENT',
+                    style: x.overline,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  ok ? Icons.check_circle_outline : Icons.error_outline,
+                  size: 13,
+                  color: color,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  switch (ecart) {
+                    0 => 'Conforme',
+                    > 0 => 'Excédent',
+                    _ => 'À vérifier',
+                  },
+                  style: x.caption.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '${ecart > 0
+                          ? '+'
+                          : ecart < 0
+                          ? '−'
+                          : ''}${Fmt.num(ecart.abs())}',
+                      key: const ValueKey('ecart-prelevement'),
+                      style: x.heroAmount.copyWith(color: color),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text('Ar', style: x.monoMuted.copyWith(fontSize: 13)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Une seule ligne, toujours — comme la formule du solde. À l'étroit,
+            // le calcul se réduit : un chiffre ne se tronque pas.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('saisi ', style: x.monoFaint),
+                  Text(Fmt.num(totals.prelevement), style: x.monoMuted),
+                  Text('  −  calculé ', style: x.monoFaint),
+                  Text(
+                    Fmt.num(totals.prelevementCalcule),
+                    key: const ValueKey('prelevement-calcule'),
+                    style: x.monoMuted,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TotalsRow extends StatelessWidget {
   const _TotalsRow({
     required this.totals,
+    required this.period,
     required this.periodWord,
     required this.delta,
-    required this.wrap,
+    required this.width,
     required this.onOpenSection,
     required this.charges,
     required this.nbCharges,
@@ -352,9 +458,13 @@ class _TotalsRow extends StatelessWidget {
   });
 
   final PeriodTotals totals;
+  final Period period;
   final String periodWord;
   final int? delta;
-  final bool wrap;
+
+  /// Largeur offerte à la tête : sert à caler la carte d'écart sur la grille
+  /// des cartes du dessous.
+  final double width;
   final ValueChanged<AppSection> onOpenSection;
 
   /// Total des charges du mois, ou `null` hors cadrage Mois — auquel cas la
@@ -367,11 +477,13 @@ class _TotalsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final solde = SoldeNetCard(
-      solde: totals.soldeNet,
+      solde: totals.soldeNetPour(period),
       periodWord: periodWord,
       deltaPercent: delta,
-      formula: charges != null && chargesIncluses
-          ? 'entrant − sortant − prélèv. − charges'
+      formula: period == Period.month
+          ? (chargesIncluses
+                ? 'prélèvement saisi − charges'
+                : 'prélèvement saisi')
           : 'entrant − sortant − prélèv.',
     );
     final cards = [
@@ -390,7 +502,7 @@ class _TotalsRow extends StatelessWidget {
         onTap: () => onOpenSection(AppSection.expenses),
       ),
       TotalCard(
-        label: 'Prélèvement',
+        label: 'Prélèvement saisi',
         amount: totals.prelevement,
         sub: '${totals.nbPrelevements} retraits',
         color: t.drawing,
@@ -411,33 +523,39 @@ class _TotalsRow extends StatelessWidget {
         ),
     ];
 
-    if (!wrap) {
-      return _band(
-        minHeight: 118,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(flex: 15, child: solde),
-            for (final c in cards) ...[
-              const SizedBox(width: 12),
-              Expanded(flex: 10, child: c),
-            ],
-          ],
-        ),
-      );
-    }
+    // Deux rangées, quel que soit le cadrage. En haut, l'écart s'aligne sur
+    // la grille du dessous : la dernière carte, ou les deux dernières quand
+    // les charges du mois en ajoutent une quatrième.
+    const gap = 12.0;
+    final n = cards.length;
+    final cardWidth = (width - gap * (n - 1)) / n;
+    final ecartWidth = n > 3 ? cardWidth * 2 + gap : cardWidth;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _band(minHeight: 104, child: solde),
-        const SizedBox(height: 12),
         _band(
           minHeight: 104,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (var i = 0; i < cards.length; i++) ...[
-                if (i > 0) const SizedBox(width: 12),
+              Expanded(child: solde),
+              const SizedBox(width: gap),
+              SizedBox(
+                width: ecartWidth,
+                child: _Reconciliation(totals: totals),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: gap),
+        _band(
+          minHeight: 104,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < n; i++) ...[
+                if (i > 0) const SizedBox(width: gap),
                 Expanded(child: cards[i]),
               ],
             ],
@@ -544,7 +662,9 @@ class _DepensesPanel extends StatelessWidget {
     return [
       if (charges.isNotEmpty) ...[
         _PanelEntry.section(
-          data.chargesIncluses ? 'Charges du mois' : 'Charges du mois · exclues',
+          data.chargesIncluses
+              ? 'Charges du mois'
+              : 'Charges du mois · exclues',
         ),
         for (final c in charges) _PanelEntry.line(c, charge: true),
         if (data.depenses.isNotEmpty) const _PanelEntry.section('Dépenses'),
@@ -577,11 +697,7 @@ class _DepensesPanel extends StatelessWidget {
                     itemBuilder: (context, i) {
                       final e = entries[i];
                       return e.isSection
-                          ? TotalBar(
-                              height: 26,
-                              label: e.title!,
-                              value: '',
-                            )
+                          ? TotalBar(height: 26, label: e.title!, value: '')
                           : _Line(
                               entry: e,
                               pale: e.charge && !data.chargesIncluses,
@@ -654,10 +770,7 @@ class _Line extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text(
-            Fmt.num(d.montant),
-            style: pale ? x.monoFaint : x.monoBody,
-          ),
+          Text(Fmt.num(d.montant), style: pale ? x.monoFaint : x.monoBody),
         ],
       ),
     );

@@ -7,6 +7,8 @@
 /// restent la source ; ce fichier ne décrit que ce que les écrans manipulent.
 library;
 
+import 'package:caisse_dashboard/core/format.dart' show Period;
+
 /// Relevé électrique, projeté depuis la table `Releves`.
 class ReleveElectricite {
   const ReleveElectricite({
@@ -187,6 +189,13 @@ class PeriodTotals {
   /// `soldeNet` du mois ne vaut plus la somme des `soldeNet` de ses jours.
   int get soldeNet => entrant - sortant - prelevement - charges;
 
+  int get prelevementCalcule => entrant - sortant;
+  int get ecartPrelevement => prelevement - prelevementCalcule;
+
+  /// Le prélèvement réellement saisi est la référence du résultat mensuel.
+  int soldeNetPour(Period period) =>
+      period == Period.month ? prelevement - charges : soldeNet;
+
   static const empty = PeriodTotals(
     entrant: 0,
     sortant: 0,
@@ -220,7 +229,8 @@ class ChargeSuggestion {
   final String? categorie;
 
   /// La catégorie à montrer dans la liste : le choix passé, sinon la déduction.
-  String get categorieEffective => CategoryRules.resolveCharge(categorie, libelle);
+  String get categorieEffective =>
+      CategoryRules.resolveCharge(categorie, libelle);
 }
 
 /// Une charge du mois, projetée depuis la table `Charges`.
@@ -257,7 +267,8 @@ class ChargeMensuelle {
   final String? categorie;
 
   /// La catégorie à afficher et à compter : le choix, sinon la déduction.
-  String get categorieEffective => CategoryRules.resolveCharge(categorie, libelle);
+  String get categorieEffective =>
+      CategoryRules.resolveCharge(categorie, libelle);
 
   /// Premier jour du mois d'imputation — ce qui décide du cadrage.
   final DateTime mois;
