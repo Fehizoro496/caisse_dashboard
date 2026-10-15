@@ -105,6 +105,12 @@ class DBService extends GetxService {
     );
   }
 
+  Future<int> deleteOperation(String id) async {
+    return await (database.delete(
+      database.operations,
+    )..where((t) => t.idOperation.equals(id))).go();
+  }
+
   /// Corrige une dépense existante. Voir [updateOperation] pour l'identifiant.
   Future<int> updateDepense({
     required String id,
@@ -121,6 +127,12 @@ class DBService extends GetxService {
         dateDepense: drift_data_class.Value(dateDepense),
       ),
     );
+  }
+
+  Future<int> deleteDepense(String id) async {
+    return await (database.delete(
+      database.depenses,
+    )..where((t) => t.idDepense.equals(id))).go();
   }
 
   Future<List<Operation>> getAllOperations() async {
@@ -203,6 +215,12 @@ class DBService extends GetxService {
         datePrelevement: drift_data_class.Value(datePrelevement),
       ),
     );
+  }
+
+  Future<int> deletePrelevement(String id) async {
+    return await (database.delete(
+      database.prelevements,
+    )..where((t) => t.idPrelevement.equals(id))).go();
   }
 
   /// Corrige un relevé existant. Voir [updateOperation] pour l'identifiant.

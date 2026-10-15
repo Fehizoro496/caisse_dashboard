@@ -196,7 +196,11 @@ class _DataRow2State extends State<DataRow2> {
 /// Discret au repos, il ne prend la couleur d'accent qu'au survol : un tableau
 /// de comptabilité n'est pas une barre d'outils.
 class RowEditButton extends StatefulWidget {
-  const RowEditButton({super.key, required this.onTap, this.tooltip = 'Modifier'});
+  const RowEditButton({
+    super.key,
+    required this.onTap,
+    this.tooltip = 'Modifier',
+  });
 
   final VoidCallback? onTap;
   final String tooltip;
@@ -231,6 +235,94 @@ class _RowEditButtonState extends State<RowEditButton> {
               Icons.edit_outlined,
               size: 14,
               color: _hover ? t.accent : t.faint,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Corbeille de fin de ligne, suppression en deux temps : la ligne entière
+/// ouvrant déjà la correction, une corbeille sans confirmation effacerait sur
+/// un clic mal placé.
+class RowDeleteButton extends StatefulWidget {
+  const RowDeleteButton({
+    super.key,
+    required this.onConfirmed,
+    required this.title,
+    required this.message,
+  });
+
+  final VoidCallback? onConfirmed;
+
+  /// Titre et texte de la confirmation — « Supprimer la charge ? », etc.
+  final String title;
+  final String message;
+
+  @override
+  State<RowDeleteButton> createState() => _RowDeleteButtonState();
+}
+
+class _RowDeleteButtonState extends State<RowDeleteButton> {
+  bool _hover = false;
+
+  Future<void> _confirm() async {
+    final t = context.tokens;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: t.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: t.br),
+        title: Text(widget.title, style: ctx.texts.cardTitle),
+        content: Text(
+          widget.message,
+          style: ctx.texts.bodyMuted.copyWith(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Annuler', style: TextStyle(color: t.muted)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: t.danger,
+              shape: RoundedRectangleBorder(borderRadius: t.brSmall),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+            ),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) widget.onConfirmed?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    if (widget.onConfirmed == null) return const SizedBox.shrink();
+    return Tooltip(
+      message: 'Supprimer',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: _confirm,
+          child: Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: _hover ? t.surfaceAlt : Colors.transparent,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Icon(
+              Icons.delete_outline,
+              size: 14,
+              color: _hover ? t.danger : t.faint,
             ),
           ),
         ),

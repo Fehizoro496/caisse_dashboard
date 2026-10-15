@@ -242,6 +242,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('une dépense ne se supprime qu\'après confirmation', (
+    tester,
+  ) async {
+    var supprimee = 0;
+    await mount(
+      tester,
+      (context) => LedgerScreen(
+        config: LedgerConfigs.depenses(context),
+        filter: SearchFilter(query: '', onChanged: (_) {}, hint: ''),
+        sort: LedgerSort.date,
+        onSortChanged: (_) {},
+        items: [
+          depenseItem(
+            context,
+            date: DateTime(2026, 8, 3, 9),
+            libelle: 'Ramette papier',
+            categorie: 'Consommables',
+            montant: 25000,
+            onEdit: () {},
+            onDelete: () => supprimee++,
+          ),
+        ],
+      ),
+      const Size(1280, 720),
+      1.3,
+    );
+    expect(tester.takeException(), isNull);
+
+    // Annuler ne touche à rien.
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+    expect(find.text('Supprimer la dépense ?'), findsOneWidget);
+    await tester.tap(find.text('Annuler'));
+    await tester.pumpAndSettle();
+    expect(supprimee, 0);
+
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Supprimer'));
+    await tester.pumpAndSettle();
+    expect(supprimee, 1);
+  });
+
   /// Ouvre le formulaire de charge. Le bouton « Ajouter » de l'écran ne suffit
   /// pas : c'est le contrôleur qui appelle l'éditeur, et le fixture n'en a pas.
   Future<void> openChargeEditor(

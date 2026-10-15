@@ -183,9 +183,14 @@ class ChargesScreen extends StatelessWidget {
                                               onTap: () => onEdit(c),
                                             ),
                                             const SizedBox(width: 2),
-                                            _DeleteButton(
+                                            RowDeleteButton(
                                               onConfirmed: () => onDelete(c),
-                                              libelle: c.libelle,
+                                              title: 'Supprimer la charge ?',
+                                              message:
+                                                  '« ${c.libelle} » sera '
+                                                  'retirée du mois et du '
+                                                  'solde. Cette suppression '
+                                                  'ne peut pas être annulée.',
                                             ),
                                           ],
                                         ),
@@ -196,7 +201,8 @@ class ChargesScreen extends StatelessWidget {
                         ),
                         TotalBar(
                           label: 'Total des charges',
-                          meta: '${charges.length} '
+                          meta:
+                              '${charges.length} '
                               '${charges.length > 1 ? 'lignes' : 'ligne'}',
                           value: Fmt.ar(_total),
                           valueColor: t.charge,
@@ -219,7 +225,8 @@ class ChargesScreen extends StatelessWidget {
     if (reportables.isEmpty) {
       return const EmptyState(
         title: 'Aucune charge pour ce mois.',
-        hint: 'Loyer, fournitures, factures — ajoutez-les ici pour qu\'elles '
+        hint:
+            'Loyer, fournitures, factures — ajoutez-les ici pour qu\'elles '
             'pèsent sur le solde du mois.',
       );
     }
@@ -307,84 +314,6 @@ class _Step extends StatelessWidget {
       child: Icon(icon, size: 18, color: context.tokens.muted),
     ),
   );
-}
-
-/// Suppression en deux temps : la ligne entière ouvrant déjà la correction,
-/// une corbeille sans confirmation effacerait sur un clic mal placé.
-class _DeleteButton extends StatefulWidget {
-  const _DeleteButton({required this.onConfirmed, required this.libelle});
-  final VoidCallback onConfirmed;
-  final String libelle;
-
-  @override
-  State<_DeleteButton> createState() => _DeleteButtonState();
-}
-
-class _DeleteButtonState extends State<_DeleteButton> {
-  bool _hover = false;
-
-  Future<void> _confirm() async {
-    final t = context.tokens;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: t.surface,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: t.br),
-        title: Text('Supprimer la charge ?', style: ctx.texts.cardTitle),
-        content: Text(
-          '« ${widget.libelle} » sera retirée du mois et du solde. '
-          'Cette suppression ne peut pas être annulée.',
-          style: ctx.texts.bodyMuted.copyWith(height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Annuler', style: TextStyle(color: t.muted)),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: t.danger,
-              shape: RoundedRectangleBorder(borderRadius: t.brSmall),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-            ),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) widget.onConfirmed();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Tooltip(
-      message: 'Supprimer',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: _confirm,
-          child: Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: _hover ? t.surfaceAlt : Colors.transparent,
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Icon(
-              Icons.delete_outline,
-              size: 14,
-              color: _hover ? t.danger : t.faint,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _Summary extends StatelessWidget {

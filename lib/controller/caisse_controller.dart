@@ -512,6 +512,10 @@ class CaisseController extends GetxController {
           date: o.dateOperation,
           amount: o.prixOperation * o.quantiteOperation,
           onEdit: () => editOperation(context, o),
+          onDelete: () => deleteOperation(o),
+          label:
+              '${o.nomOperation} · '
+              '${Fmt.ar(o.prixOperation * o.quantiteOperation)}',
           cells: [
             LedgerCell(o.nomOperation),
             LedgerCell(Fmt.num(o.prixOperation), mono: true),
@@ -547,6 +551,7 @@ class CaisseController extends GetxController {
           categorie: CategoryRules.of(d.libelle),
           montant: d.montant,
           onEdit: () => editDepense(context, d),
+          onDelete: () => deleteDepense(d),
         ),
     ];
   }
@@ -567,6 +572,10 @@ class CaisseController extends GetxController {
           date: p.datePrelevement,
           amount: p.montant,
           onEdit: () => editPrelevement(context, p),
+          onDelete: () => deletePrelevement(p),
+          label:
+              '${Fmt.ar(p.montant)} du '
+              '${Fmt.longDate(p.datePrelevement)}',
           cells: [
             LedgerCell(Fmt.cap(Fmt.longDate(p.datePrelevement))),
             LedgerCell(Fmt.num(p.montant), mono: true),
@@ -639,9 +648,7 @@ class CaisseController extends GetxController {
   /// quelle période la ligne appartient.
   static bool _plusRecente(Charge a, Charge b) {
     final m = a.mois.compareTo(b.mois);
-    return m != 0
-        ? m > 0
-        : a.dateEnregistrement.isAfter(b.dateEnregistrement);
+    return m != 0 ? m > 0 : a.dateEnregistrement.isAfter(b.dateEnregistrement);
   }
 
   /// Charges du mois sélectionné, de la plus lourde à la plus légère.
@@ -679,7 +686,9 @@ class CaisseController extends GetxController {
     final prev = DateTime(moisCharges.year, moisCharges.month - 1);
     final list =
         _charges
-            .where((c) => c.mois.year == prev.year && c.mois.month == prev.month)
+            .where(
+              (c) => c.mois.year == prev.year && c.mois.month == prev.month,
+            )
             .toList()
           ..sort((a, b) => _totalCharge(b).compareTo(_totalCharge(a)));
     return [
@@ -870,10 +879,7 @@ class CaisseController extends GetxController {
         return;
       }
       await load(keepDate: true);
-      _toast(
-        'Dépense modifiée',
-        '${edit.libelle} · ${Fmt.ar(edit.montant)}',
-      );
+      _toast('Dépense modifiée', '${edit.libelle} · ${Fmt.ar(edit.montant)}');
     } catch (e) {
       _toast('Modification impossible', '$e', ok: false);
     }
@@ -908,6 +914,54 @@ class CaisseController extends GetxController {
       _toast('Prélèvement modifié', Fmt.ar(edit.montant));
     } catch (e) {
       _toast('Modification impossible', '$e', ok: false);
+    }
+  }
+
+  // ─────────────────────────────── Suppressions ───────────────────────────────
+  // Une ligne saisie par erreur (doublon, mauvais poste) ne se corrige pas :
+  // elle s'efface. La confirmation est demandée par la vue.
+
+  Future<void> deleteOperation(Operation o) => _delete(
+    () => _db.deleteOperation(o.idOperation),
+    what: 'Opération',
+    detail:
+        '${o.nomOperation} · '
+        '${Fmt.ar(o.prixOperation * o.quantiteOperation)}',
+  );
+
+  Future<void> deleteDepense(Depense d) => _delete(
+    () => _db.deleteDepense(d.idDepense),
+    what: 'Dépense',
+    detail: '${d.libelle} · ${Fmt.ar(d.montant)}',
+  );
+
+  Future<void> deletePrelevement(Prelevement p) => _delete(
+    () => _db.deletePrelevement(p.idPrelevement),
+    what: 'Prélèvement',
+    detail: Fmt.ar(p.montant),
+    masculin: true,
+  );
+
+  Future<void> _delete(
+    Future<int> Function() run, {
+    required String what,
+    required String detail,
+    bool masculin = false,
+  }) async {
+    try {
+      final touched = await run();
+      if (touched == 0) {
+        _toast(
+          '$what introuvable',
+          "La ligne a disparu de la base entre-temps — rien n'a été supprimé.",
+          ok: false,
+        );
+        return;
+      }
+      await load(keepDate: true);
+      _toast('$what supprimé${masculin ? '' : 'e'}', detail);
+    } catch (e) {
+      _toast('Suppression impossible', '$e', ok: false);
     }
   }
 

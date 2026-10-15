@@ -12,6 +12,8 @@ class LedgerItem {
     required this.amount,
     required this.cells,
     this.onEdit,
+    this.onDelete,
+    this.label = '',
   });
 
   final DateTime date;
@@ -23,6 +25,12 @@ class LedgerItem {
   /// Ouvre la correction de l'enregistrement. Absent = ligne non modifiable
   /// (prélèvements) ; la colonne d'action vient de [LedgerConfig.editable].
   final VoidCallback? onEdit;
+
+  /// Supprime l'enregistrement, après confirmation. Absent = pas de corbeille.
+  final VoidCallback? onDelete;
+
+  /// Désignation de la ligne dans la confirmation de suppression.
+  final String label;
 }
 
 class LedgerCell {
@@ -89,6 +97,8 @@ class LedgerConfig {
     required this.emptyHint,
     this.nameSortLabel,
     this.editable = false,
+    this.deleteTitle,
+    this.deleteEffect = '',
   });
 
   final List<Col> columns;
@@ -104,6 +114,17 @@ class LedgerConfig {
   /// Ajoute la colonne d'action en fin de tableau. Portée par la config et
   /// non par les lignes : la colonne doit rester en place même filtre vide.
   final bool editable;
+
+  /// Titre de la confirmation de suppression ; absent = lignes non
+  /// supprimables, et la colonne d'action ne garde que le crayon.
+  final String? deleteTitle;
+
+  /// Suite de la confirmation, après le libellé de la ligne. Elle rappelle
+  /// que l'import fusionne par identifiant : une sauvegarde qui contient
+  /// encore la ligne la fera revenir.
+  final String deleteEffect;
+
+  bool get deletable => deleteTitle != null;
 }
 
 /// Ossature commune aux écrans Opérations, Dépenses et Prélèvements :
@@ -136,7 +157,8 @@ class LedgerScreen extends StatelessWidget {
   /// ligne sans que chaque configuration ait à la déclarer.
   List<Col> get _columns => [
     ...config.columns,
-    if (config.editable) const Col('', width: 44),
+    if (config.editable || config.deletable)
+      Col('', width: config.editable && config.deletable ? 76 : 44),
   ];
 
   /// Groupement par jour, du plus récent au plus ancien.
@@ -260,7 +282,21 @@ class LedgerScreen extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-            if (config.editable) RowEditButton(onTap: r.onEdit),
+            if (config.editable || config.deletable)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (config.editable) RowEditButton(onTap: r.onEdit),
+                  if (config.editable && config.deletable)
+                    const SizedBox(width: 2),
+                  if (config.deletable)
+                    RowDeleteButton(
+                      onConfirmed: r.onDelete,
+                      title: config.deleteTitle!,
+                      message: '« ${r.label} » ${config.deleteEffect}',
+                    ),
+                ],
+              ),
           ],
         ),
     ];
@@ -522,6 +558,10 @@ class LedgerConfigs {
     emptyTitle: 'Aucun résultat pour cette recherche.',
     emptyHint: 'Essayez un autre terme, ou changez le tri.',
     editable: true,
+    deleteTitle: "Supprimer l'opération ?",
+    deleteEffect:
+        'sera retirée des opérations et du solde. Une sauvegarde importée '
+        'qui la contient encore la rétablira.',
   );
 
   static LedgerConfig depenses(BuildContext c) => LedgerConfig(
@@ -538,6 +578,10 @@ class LedgerConfigs {
     emptyTitle: 'Aucun résultat pour cette recherche.',
     emptyHint: 'Essayez un autre terme, ou changez le tri.',
     editable: true,
+    deleteTitle: 'Supprimer la dépense ?',
+    deleteEffect:
+        'sera retirée des dépenses et du solde. Une sauvegarde importée '
+        'qui la contient encore la rétablira.',
   );
 
   static LedgerConfig prelevements(BuildContext c) => LedgerConfig(
@@ -552,6 +596,10 @@ class LedgerConfigs {
     emptyTitle: 'Aucun prélèvement ce mois-ci.',
     emptyHint: 'Les données arrivent par import de sauvegarde.',
     editable: true,
+    deleteTitle: 'Supprimer le prélèvement ?',
+    deleteEffect:
+        'sera retiré des prélèvements et du solde. Une sauvegarde importée '
+        'qui le contient encore le rétablira.',
   );
 }
 
@@ -563,10 +611,13 @@ LedgerItem depenseItem(
   required String categorie,
   required int montant,
   VoidCallback? onEdit,
+  VoidCallback? onDelete,
 }) => LedgerItem(
   date: date,
   amount: montant,
   onEdit: onEdit,
+  onDelete: onDelete,
+  label: '$libelle · ${Fmt.ar(montant)}',
   cells: [
     LedgerCell(libelle),
     LedgerCell(categorie, color: categoryColor(context, categorie)),
