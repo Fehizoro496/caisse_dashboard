@@ -87,10 +87,16 @@ class CaisseController extends GetxController {
 
   // ─────────────────────────────── Chargement ───────────────────────────────
 
-  Future<void> load({bool keepDate = false}) async {
-    loading = true;
-    error = null;
-    update();
+  /// [silent] recharge sans repasser par l'état de chargement : après une
+  /// écriture, remplacer les listes par le squelette les reconstruirait et
+  /// ramènerait leur défilement en haut, loin de la ligne qu'on vient de
+  /// corriger.
+  Future<void> load({bool keepDate = false, bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      update();
+    }
     try {
       final results = await Future.wait([
         _db.getAllOperations(),
@@ -721,7 +727,7 @@ class CaisseController extends GetxController {
         dateEnregistrement: edit.dateEnregistrement,
         categorie: edit.categorie,
       );
-      await load(keepDate: true);
+      await load(keepDate: true, silent: true);
       moisCharges = DateTime(edit.mois.year, edit.mois.month);
       update();
       _toast('Charge ajoutée', '${edit.libelle} · ${Fmt.ar(edit.montant)}');
@@ -760,7 +766,7 @@ class CaisseController extends GetxController {
         );
         return;
       }
-      await load(keepDate: true);
+      await load(keepDate: true, silent: true);
       // Changer de mois sortirait la ligne du filtre : on suit la charge.
       moisCharges = DateTime(edit.mois.year, edit.mois.month);
       update();
@@ -773,7 +779,7 @@ class CaisseController extends GetxController {
   Future<void> deleteCharge(ChargeMensuelle c) async {
     try {
       await _db.deleteCharge(c.id);
-      await load(keepDate: true);
+      await load(keepDate: true, silent: true);
       _toast('Charge supprimée', '${c.libelle} · ${Fmt.ar(c.montant)}');
     } catch (e) {
       _toast('Suppression impossible', '$e', ok: false);
@@ -800,7 +806,7 @@ class CaisseController extends GetxController {
           categorie: c.categorie,
         );
       }
-      await load(keepDate: true);
+      await load(keepDate: true, silent: true);
       moisCharges = DateTime(moisCharges.year, moisCharges.month);
       update();
       _toast(
@@ -845,7 +851,7 @@ class CaisseController extends GetxController {
       }
       // La date courante ne doit pas sauter au dernier enregistrement à cause
       // d'une simple correction.
-      await load(keepDate: true);
+      await load(keepDate: true, silent: true);
       _toast(
         'Opération modifiée',
         '${edit.nom} · ${Fmt.ar(edit.prixUnitaire * edit.quantite)}',
@@ -878,7 +884,7 @@ class CaisseController extends GetxController {
         );
         return;
       }
-      await load(keepDate: true);
+      await load(keepDate: true, silent: true);
       _toast('Dépense modifiée', '${edit.libelle} · ${Fmt.ar(edit.montant)}');
     } catch (e) {
       _toast('Modification impossible', '$e', ok: false);
@@ -906,7 +912,7 @@ class CaisseController extends GetxController {
         );
         return;
       }
-      await load(keepDate: true);
+      await load(keepDate: true, silent: true);
       // Déplacer un prélèvement d'un mois à l'autre le sortirait du filtre :
       // on suit la ligne plutôt que de laisser l'utilisateur la chercher.
       mois = DateTime(edit.date.year, edit.date.month);
@@ -958,7 +964,7 @@ class CaisseController extends GetxController {
         );
         return;
       }
-      await load(keepDate: true);
+      await load(keepDate: true, silent: true);
       _toast('$what supprimé${masculin ? '' : 'e'}', detail);
     } catch (e) {
       _toast('Suppression impossible', '$e', ok: false);
@@ -988,7 +994,7 @@ class CaisseController extends GetxController {
         );
         return;
       }
-      await load(keepDate: true);
+      await load(keepDate: true, silent: true);
       // La consommation n'est pas stockée : corriger un index rejoue les deux
       // périodes qui l'encadrent, et le partage JIRO qui s'y appuie.
       _toast(
